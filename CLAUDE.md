@@ -1,6 +1,11 @@
 # CLAUDE.md
 
 @AGENTS.md
+@docs/PRD.md
+@docs/ARCHITECTURE.md
+
+Read the PRD for *why* a decision was made and the architecture doc for *how*
+it's structured. When they conflict with this file, this file wins.
 
 ## Project
 
