@@ -1,18 +1,29 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
-
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
-
-SplashScreen.preventAutoHideAsync();
+import { NativeTabs } from "expo-router/unstable-native-tabs";
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
-    </ThemeProvider>
+    <NativeTabs>
+      <NativeTabs.Trigger name="index">
+        <NativeTabs.Trigger.Label>Plan</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon
+          sf="figure.strengthtraining.traditional"
+          md="home"
+        />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="maxes">
+        <NativeTabs.Trigger.Icon
+          sf="gauge.with.dots.needle.100percent"
+          md="exercise"
+        />
+        <NativeTabs.Trigger.Label>Maxes</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="templates">
+        <NativeTabs.Trigger.Icon
+          sf="pencil.and.list.clipboard"
+          md="flowsheet"
+        />
+        <NativeTabs.Trigger.Label>Templates</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+    </NativeTabs>
   );
 }
