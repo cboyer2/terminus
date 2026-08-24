@@ -1,29 +1,47 @@
-import { NativeTabs } from "expo-router/unstable-native-tabs";
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
+import "react-native-reanimated";
 
-export default function TabLayout() {
+import { SplashScreenController } from "@/components/splash-screen-controller";
+
+import { useAuthContext } from "@/hooks/use-auth-context";
+import AuthProvider from "@/providers/auth-provider";
+import { useColorScheme } from "react-native";
+
+// Set the animation options. This is optional.
+SplashScreen.setOptions({
+  duration: 1000,
+  fade: true,
+});
+
+// Separate RootNavigator so we can access the AuthContext
+function RootNavigator() {
+  const { isLoggedIn } = useAuthContext();
+
   return (
-    <NativeTabs>
-      <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>Plan</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          sf="figure.strengthtraining.traditional"
-          md="home"
-        />
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="maxes">
-        <NativeTabs.Trigger.Icon
-          sf="gauge.with.dots.needle.100percent"
-          md="exercise"
-        />
-        <NativeTabs.Trigger.Label>Maxes</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="templates">
-        <NativeTabs.Trigger.Icon
-          sf="pencil.and.list.clipboard"
-          md="flowsheet"
-        />
-        <NativeTabs.Trigger.Label>Templates</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-    </NativeTabs>
+    <Stack>
+      <Stack.Protected guard={isLoggedIn}>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      </Stack.Protected>
+      <Stack.Protected guard={!isLoggedIn}>
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+      </Stack.Protected>
+      <Stack.Screen name="+not-found" />
+    </Stack>
+  );
+}
+
+export default function RootLayout() {
+  const colorScheme = useColorScheme();
+
+  return (
+    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+      <AuthProvider>
+        <SplashScreenController />
+        <RootNavigator />
+        <StatusBar style="auto" />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
