@@ -50,7 +50,7 @@ There is no position, no date, no completion state, and no history.
 
 **Postgres:** `snake_case`, plural table names, `user_id` foreign key on every row, RLS enabled on every table.
 
-**TypeScript:** `camelCase` for variables and functions, `PascalCase` for types and components, `UPPER_SNAKE_CASE` for constants. Component files `PascalCase.tsx`; everything else `kebab-case.ts`.
+**TypeScript:** `camelCase` for variables and functions, `PascalCase` for types and components, `UPPER_SNAKE_CASE` for constants. All files `kebab-case` (`themed-text.tsx`, `use-training-max.ts`) regardless of what they export — the exported component or type name itself stays `PascalCase`.
 
 **Domain terms are precise.** These are all numbers and must never be confused:
 

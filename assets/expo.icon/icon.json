@@ -1,13 +1,21 @@
 {
   "fill": {
-    "automatic-gradient": "extended-srgb:0.00000,0.47843,1.00000,1.00000"
+    "automatic-gradient": "extended-srgb:0.04314,0.07059,0.12549,1.00000"
   },
   "groups": [
     {
       "layers": [
         {
-          "image-name": "icon.svg",
-          "name": "icon",
+          "image-name": "layer-2-ring.svg",
+          "name": "layer-2-ring",
+          "position": {
+            "scale": 1,
+            "translation-in-points": [1.1008400065293245e-5, -16.046875]
+          }
+        },
+        {
+          "image-name": "layer-3-dot.svg",
+          "name": "layer-3-dot",
           "position": {
             "scale": 1,
             "translation-in-points": [1.1008400065293245e-5, -16.046875]

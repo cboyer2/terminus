@@ -1,15 +1,27 @@
 import { supabase } from "@/data/supabase";
+import { spacing } from "@/theme";
 import * as AppleAuthentication from "expo-apple-authentication";
-import { StyleSheet, View } from "react-native";
+import {
+  StyleSheet,
+  View,
+  useColorScheme,
+  useWindowDimensions,
+} from "react-native";
 
 export default function App() {
+  const colorScheme = useColorScheme();
+  const { width } = useWindowDimensions();
   return (
     <View style={styles.container}>
       <AppleAuthentication.AppleAuthenticationButton
         buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-        buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+        buttonStyle={
+          colorScheme === "dark"
+            ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+            : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+        }
         cornerRadius={5}
-        style={styles.button}
+        style={[styles.button, { width: width - spacing.md * 2 }]}
         onPress={async () => {
           try {
             const credential = await AppleAuthentication.signInAsync({
@@ -49,7 +61,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   button: {
-    width: 200,
     height: 44,
   },
 });

@@ -1,22 +1,18 @@
+import { Logo } from "@/components/logo";
+import { PrimaryButton } from "@/components/primary-button";
 import AppleSignInButton from "@/components/social-auth-buttons/apple/apple-sign-in-button";
+import { TextField } from "@/components/text-field";
+import { ThemedText } from "@/components/themed-text";
 import { supabase } from "@/data/supabase";
-import { useAuthContext } from "@/hooks/use-auth-context";
+import { spacing } from "@/theme";
 import { Link, Stack } from "expo-router";
 import { useState } from "react";
-import {
-  Alert,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Alert, StyleSheet, View } from "react-native";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const { claims } = useAuthContext();
 
   async function signInWithEmail() {
     setLoading(true);
@@ -33,40 +29,28 @@ export default function LoginScreen() {
     <>
       <Stack.Screen options={{ title: "Login" }} />
       <View style={styles.container}>
-        <View style={[styles.verticallySpaced, styles.mt20]}>
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            onChangeText={(text) => setEmail(text)}
-            value={email}
-            placeholder="email@address.com"
-            autoCapitalize="none"
-            style={styles.input}
-          />
-        </View>
-        <View style={styles.verticallySpaced}>
-          <Text style={styles.label}>Password</Text>
-          <TextInput
-            onChangeText={(text) => setPassword(text)}
-            value={password}
-            secureTextEntry={true}
-            placeholder="Password"
-            autoCapitalize="none"
-            style={styles.input}
-          />
-        </View>
-        <View style={[styles.verticallySpaced, styles.mt20]}>
-          <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={() => signInWithEmail()}
-            disabled={loading}
-          >
-            <Text style={styles.buttonText}>Sign in</Text>
-          </TouchableOpacity>
-        </View>
-        {claims && <Text>{claims.sub}</Text>}
+        <Logo size={200} />
+        <TextField
+          label="Email"
+          value={email}
+          onChangeText={setEmail}
+          placeholder="email@address.com"
+        />
+        <TextField
+          label="Password"
+          value={password}
+          onChangeText={setPassword}
+          placeholder="Password"
+          secureTextEntry
+        />
+        <PrimaryButton
+          title="Sign in"
+          onPress={signInWithEmail}
+          loading={loading}
+        />
         <AppleSignInButton />
-        <Link href="/signup">
-          <Text>Don't have an account? Sign up</Text>
+        <Link href="/signup" replace>
+          <ThemedText>Don't have an account? Sign up</ThemedText>
         </Link>
       </View>
     </>
@@ -77,43 +61,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "top",
     marginTop: 40,
-    padding: 12,
-  },
-  verticallySpaced: {
-    paddingTop: 4,
-    paddingBottom: 4,
-    alignSelf: "stretch",
-  },
-  mt20: {
-    marginTop: 20,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#86939e",
-    marginBottom: 6,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#86939e",
-    borderRadius: 4,
-    padding: 12,
-    fontSize: 16,
-  },
-  button: {
-    backgroundColor: "#2089dc",
-    borderRadius: 4,
-    padding: 12,
-    alignItems: "center",
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
+    padding: spacing.md,
+    gap: spacing.md,
   },
 });

@@ -1,9 +1,10 @@
-import { StyleSheet, Text, View } from "react-native";
+import { ThemedText } from "@/components/themed-text";
+import { StyleSheet, View } from "react-native";
 
 export default function Tab() {
   return (
     <View style={styles.container}>
-      <Text>Tab Maxes</Text>
+      <ThemedText>Tab Maxes</ThemedText>
     </View>
   );
 }
