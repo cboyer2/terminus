@@ -1,6 +1,18 @@
-import { AuthContext } from "@/hooks/use-auth-context";
 import { supabase } from "@/data/supabase";
+import { AuthContext } from "@/hooks/use-auth-context";
+import * as Linking from "expo-linking";
 import { PropsWithChildren, useEffect, useState } from "react";
+
+function handleDeepLink(url: string) {
+  const fragment = url.split("#")[1] ?? "";
+  const params = new URLSearchParams(fragment);
+  const access_token = params.get("access_token");
+  const refresh_token = params.get("refresh_token");
+
+  if (access_token && refresh_token) {
+    supabase.auth.setSession({ access_token, refresh_token });
+  }
+}
 
 export default function AuthProvider({ children }: PropsWithChildren) {
   const [claims, setClaims] = useState<
@@ -36,6 +48,20 @@ export default function AuthProvider({ children }: PropsWithChildren) {
     // Cleanup subscription on unmount
     return () => {
       subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    Linking.getInitialURL().then((url) => {
+      if (url) handleDeepLink(url);
+    });
+
+    const subscription = Linking.addEventListener("url", ({ url }) => {
+      handleDeepLink(url);
+    });
+
+    return () => {
+      subscription.remove();
     };
   }, []);
 

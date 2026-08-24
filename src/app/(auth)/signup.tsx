@@ -7,7 +7,7 @@ import { spacing } from "@/theme";
 import * as Linking from "expo-linking";
 import { Link, Stack } from "expo-router";
 import { useState } from "react";
-import { Alert, StyleSheet, View } from "react-native";
+import { Alert, StyleSheet, ScrollView } from "react-native";
 
 export default function SignUpScreen() {
   const [email, setEmail] = useState("");
@@ -36,7 +36,7 @@ export default function SignUpScreen() {
   return (
     <>
       <Stack.Screen options={{ title: "Sign-up" }} />
-      <View style={styles.container}>
+      <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.container}>
         <Logo size={200} />
         <TextField
           label="Email"
@@ -59,7 +59,7 @@ export default function SignUpScreen() {
         <Link href="/login" replace>
           <ThemedText>Already have an account? Log in</ThemedText>
         </Link>
-      </View>
+      </ScrollView>
     </>
   );
 }
@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "top",
+    justifyContent: "flex-start",
     marginTop: 40,
     padding: spacing.md,
     gap: spacing.md,
