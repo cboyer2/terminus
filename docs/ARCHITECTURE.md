@@ -1,14 +1,14 @@
 # Architecture — Terminus
 
 Derived from `docs/PRD.md` and the constraints in `CLAUDE.md`. This is a design
-reference, not an implementation — the code gets typed by hand.
+reference, not an implementation.
 
 ---
 
 ## 1. Layering
 
 ```
-```
+
               app/ (expo-router)
               screens + hooks
                 /           \
@@ -16,8 +16,10 @@ reference, not an implementation — the code gets typed by hand.
           data/            generator/
    Supabase + cache     pure functions + types
    (the only I/O)       (imports nothing)
+
 ```
-```
+
+This is a fan, not a stack. `app/` depends on both; nothing depends on `app/`.
 
 `generator/` imports nothing — not React, not Supabase, not storage, and not
 `data/`. Values flow the other way: `use-plan.ts` reads seeds and template
@@ -37,15 +39,95 @@ This is the module that earns the PRD's success criterion: "adding the
 second template requires no changes to the plan generator." Two things make
 that true:
 
-- **Templates are data, not code.** A `Template` is a composed record:
-  main-work scheme (percentages/reps per week), supplemental source (BBB,
-  FSL, none, …), session shape (lift order, day count), and assistance
-  targets (push/pull/single-leg-core rep targets). The generator reads this
-  record; it never branches on template name — except the one deliberate,
-  commented exception `CLAUDE.md` allows for v1's single Beginner template.
+- **Templates are data, not code.** A `Template` is a composed record with
+  two groups of fields.
+
+  **Prescription** — what the template makes you do:
+  - main-work scheme (percentages and reps per week)
+  - supplemental prescription (sets, reps, and where the weight comes from)
+  - session shape
+  - assistance targets (push / pull / single-leg-core rep ranges per workout)
+  - jumps and throws (total reps per workout)
+  - conditioning (maximum hard days, range of easy days)
+
+  **Setup constraints** — what the pickers need:
+  - **role eligibility** — Leader, Anchor, both, or neither. The Beginner
+    template is *neither*, and is valid only with the Beginner programming
+    model.
+  - **compatible anchors** — on Leader-eligible templates, the set of Anchor
+    templates that may follow it. The book specifies these per Leader rather
+    than allowing any pairing, so this is a directed relation, not a symmetric
+    one. Express it as a list of template IDs, or as a group tag if the lists
+    start repeating across a family.
+  - **supported day counts** — which of 2, 3, or 4 training days this
+    template can be run on. This is what filters the template picker.
+  - **TM percentage** — a fixed value or a range the user chooses from.
+
+  The Anchor picker therefore shows the intersection of three filters: the
+  Leader's compatible-anchor list, templates supporting the chosen day count,
+  and Anchor role eligibility. Leader is always chosen first.
+
+### Role-keyed fields
+
+**Any prescription field may hold either a plain value or a map keyed by
+role** — `leader`, `anchor`, or `standalone`. One resolver reads it:
+
+```ts
+type ByRole<T> = T | { leader?: T; anchor?: T; standalone?: T; default: T }
+```
+
+This exists because the book's own answer to "how do I run Original 5/3/1 as
+both a Leader and an Anchor" is *change the assistance volume* — higher for
+the first two to three cycles, lower for the final two to three, with main
+work, jumps/throws and conditioning unchanged. Modelling that as two
+near-identical template records would duplicate everything to vary three
+numbers.
+
+The rule is uniform rather than restricted to assistance, because which fields
+vary by role is not yet known from a library of two templates, and guessing
+would bake in the wrong prediction.
+
+**Setup-constraint fields are never role-keyed.** Role eligibility, compatible
+anchors, and supported day counts are flat by definition. Most importantly:
+
+> **`tmPercentage` is never role-keyed.** The training max percentage is
+> plan-wide and driven by the Leader. Allowing it to vary by role is the
+> per-phase percentage this design deliberately removed, reintroduced by
+> another name.
+
+**Review heuristic, not a type rule:** if most of a template's prescription
+fields differ by role, it isn't one template with role-keyed fields — it's two
+templates, and should be split.
+
+  The generator reads this record; it never branches on template name —
+  except the one deliberate, commented exception `CLAUDE.md` allows for v1's
+  single Beginner template.
 - **One shared calc module.** Rounding, TM-from-seed, percentage-to-weight —
   one function each, called everywhere. This is where the "hardcode math in
   only one place" rule lives.
+
+**Session shape is a function of template *and* training days**, not a
+template property alone. Two days means two main lifts per session; four
+means one. The template declares which day counts it supports; the generator
+maps lifts to sessions given the chosen count.
+
+**A programming model is a list of phases, not an enum.** Each phase names a
+template role and a cycle count:
+
+```
+beginner  → [{ standalone, 1 }]
+2 + 1     → [{ leader, 2 }, { anchor, 1 }]
+2 + 2     → [{ leader, 2 }, { anchor, 2 }]
+3 + 2     → [{ leader, 3 }, { anchor, 2 }]
+```
+
+A 7th Week Protocol deload is inserted between phases; the plan always closes
+with a 7th Week TM test. A single-phase model therefore has no mid-plan
+deload, which is why the Beginner model doesn't get one.
+
+Modelling it this way means later additions — challenge programs that run a
+fixed number of cycles with no Anchor, for instance — are data, not new
+branches. The `programming_model` column stores an ID either way.
 
 Domain types live in `generator/types.ts` and everything imports them from
 there. There is no separate `domain/` directory — it would add a hop without
@@ -67,12 +149,32 @@ generator/
 ```
 
 `cycles.ts` is the one function the rest of the app calls:
-`(lifts, template, programmingModel) => Plan`. Everything downstream — cheat
+`(lifts, program) => Plan`. Everything downstream — cheat
 sheet screen, template browser — is a view over its output.
+
+### A cycle is three progression steps per lift, not three calendar weeks
+
+Every 5/3/1 cycle gives each lift three progression steps — the 5s, 3s and 1s
+weeks, whatever the template calls them. How many *calendar* weeks that spans
+falls out of the session shape:
+
+- One main lift per day, four days → three calendar weeks
+- Two main lifts per session on an A/B rotation → **two** calendar weeks, six
+  sessions, each workout progressing on its own appearances rather than by
+  calendar week
+
+So `Week` is a poor name for the unit. The generator should count progression
+steps per lift and let calendar grouping be a rendering concern.
+
+**Consequence for the UI:** on an A/B template a single calendar week contains
+lifts at *different* progression steps. The cheat sheet cannot assume "week two
+means every lift is at week-two percentages." Since the app tracks no dates,
+the safest presentation is an ordered list of sessions rather than a
+calendar-week grid.
 
 ### Weeks are not all the same shape
 
-A block contains normal training weeks *and* 7th Week Protocol weeks, which
+A block contains normal training weeks _and_ 7th Week Protocol weeks, which
 have different set/rep structures and different meanings. Modelling them as
 one `CycleWeek` type forces optional fields that are meaningless half the
 time. Use a discriminated union:
@@ -94,39 +196,73 @@ Only inputs are stored — no plan, no position, no dates, per §4 of the PRD.
 
 ```
 lifts
-  id                  uuid, pk
-  user_id             uuid, fk → auth.users
-  lift_key            text, constrained to a known set ('squat', 'bench',
-                      'press', 'deadlift', 'front_squat', …)
-  role                text, 'main' | 'supplemental'
-  training_max_seed_lb  numeric
-  tm_percentage       numeric, 0–1
-  increment_lb        numeric, lift-level default (template may override)
+  id                      uuid, pk
+  user_id                 uuid, fk → auth.users
+  lift_key                text, constrained to a known set ('squat', 'bench',
+                          'press', 'deadlift', 'front_squat', …)
+  role                    text, 'main' | 'supplemental'
+  training_max_seed_lb    numeric
+  tm_percentage_override  numeric, 0–1, nullable — overrides the program
+                          default for this lift only
+  increment_lb            numeric, lift-level default (template may override)
   unique (user_id, lift_key)
 
-active_program
-  user_id             uuid, pk — one row per user, and that is the point
-  template_id         text
-  programming_model   text
+program
+  user_id               uuid, pk — one row per user, and that is the point
+  programming_model     text, 'beginner' | '2+1' | '2+2' | '3+2'
+  training_days         int, check between 2 and 4
+  leader_template_id    text
+  anchor_template_id    text, null for the beginner model
+  tm_percentage         numeric, 0–1 — plan-wide default, from the Leader
+  options               jsonb, template-specific optional selections
 ```
 
-Three things worth noting about that shape:
+Five things worth noting about that shape:
 
 - **`lift_key`, not `name`, is the identifier.** Templates are code and must
   refer to lifts by a stable key; free-text names would let "Bench Press" and
-  "bench press" silently produce different plans. Add a display `name` column
-  only if you find you need one.
+  "bench press" silently produce different plans.
+- **The TM percentage is plan-wide by default, with a per-lift override.**
+  Each template declares a percentage or a range; the **Leader template's**
+  value sets `program.tm_percentage`, and it carries through the Anchor
+  unchanged. A lift may override it — the Beginner chapter assigns 90% to
+  stronger lifts and 85% to lifts the lifter struggles with on weight or form,
+  so they can work lighter while correcting technique.
+
+  ```
+  effectivePercentage(lift) = lift.tmPercentageOverride ?? program.tmPercentage
+  ```
+
+  **Per-lift is permitted; per-phase is not.** Varying the percentage between
+  Leader and Anchor is the thing this design removed, and an override must
+  never be used to reintroduce it.
+- **The 1RM is not stored.** It is an entry-time convenience only — the seed
+  is computed from it at setup and the 1RM discarded. It is derivable as
+  `seed ÷ effectivePercentage(lift)`, and after a few cycles of progression
+  that derived figure is more current than the number originally typed.
 - **`role` and `increment_lb` exist because the generator needs them.** The
-  increment lives on the template with a lift-level fallback underneath (PRD
-  §1.6) — this column is that fallback.
-- **`active_program` is singular and keyed by `user_id`.** A plural `plans`
-  table with its own `id` implies you can hold several, which is the door
-  history walks back in through. One row, enforced by the schema.
+  increment lives on the template with this column as the fallback.
+- **`program` is singular and keyed by `user_id`.** A plural table with its
+  own `id` implies you can hold several, which is the door history walks back
+  in through. One row, enforced by the schema.
+
+### Changing the percentage
+
+Swapping the Leader template for one with a different percentage does not
+recompute the seed from a stored 1RM — there isn't one. It rescales:
+
+```
+newSeed = oldSeed × (newPercentage / oldPercentage)
+```
+
+This preserves whatever progression the seed has accumulated while honouring
+the new template's intended percentage. The same arithmetic applies if the
+percentage is edited by hand.
 
 Templates themselves are **not** a table — they're code
 (`generator/templates/*.ts`), since the library is curated, not user-authored
-(an explicit non-goal in the PRD). `active_program` records *which* template
-is selected, not what it contains.
+(an explicit non-goal in the PRD). `program` records *which* templates are
+selected, not what they contain.
 
 RLS: every row scoped by `auth.uid() = user_id` — one policy per table, not
 per column. RLS is enabled in the same migration that creates each table,
@@ -138,12 +274,12 @@ never as a follow-up.
 data/
   supabase.ts        client init
   lifts.ts           getLifts, upsertLift  (verb-first, per convention)
-  program.ts         getActiveProgram, setActiveProgram
+  program.ts         getProgram, setProgram
   cache.ts           AsyncStorage-backed read cache for offline
 ```
 
 **Reads offline:** `cache.ts` mirrors the last-fetched `lifts` +
-`active_program` rows to AsyncStorage — not SecureStore, which is reserved
+`program` rows to AsyncStorage — not SecureStore, which is reserved
 for session tokens. On load the app renders from cache immediately, then
 reconciles with a live fetch. Because the plan is derived, there is nothing
 to reconcile for the plan itself; only seeds and template selection
@@ -164,7 +300,7 @@ the generator, render.
 app/
   index.tsx           cheat sheet — current cycle/week, computed weights
   maxes.tsx           enter/edit lifts + estimated-max calculator
-  templates.tsx        template + programming model picker, template library
+  template.tsx        template + programming model picker, template library
 hooks/
   use-lifts.ts        wraps data/lifts.ts + cache
   use-plan.ts         wraps data/program.ts, then calls generator/cycles.ts
@@ -202,5 +338,39 @@ behaviour, but state it as an intended rule rather than leaving it as an
 accident of the implementation — a fixture that disagrees is otherwise a long
 hunt.
 
+The function takes no rounding mode parameter. A parameter would move the
+decision to every call site — the inconsistency that "one function, one rule"
+exists to prevent — and would make a frozen fixture ambiguous about which
+mode produced it. If rounding ever needs to vary by template, it varies as a
+field on the `Template` record the generator reads, like every other axis.
+Flexibility belongs in the data, not the signature.
+
 This rule is baked into every frozen fixture. Changing it later means
 re-verifying all of them against the book.
+
+## 8. Known model gaps
+
+The design is deliberately unfinished in places. These are expected to force
+type changes as templates are added, and are listed so the churn is planned
+rather than alarming.
+
+- **Session shape is under-modelled.** It currently covers one lift per day.
+  It also needs: lifts whose day position depends on the week index (3-day
+  BBB's rotation), two main lifts in one session (Full Body BBB, Original
+  5/3/1 A/B), and a main-work scheme that differs between sessions within the
+  same week (Original 5/3/1 A/B runs 3×5, 3×5, 3×3 in week one before
+  switching to 5/3/1). This is the most likely thing to break.
+- **Main work needs per-set flags.** PR sets on some weeks only, goal-rep
+  targets, "work up to the training max for a single." A percentage/rep table
+  can't express these.
+- **Conditional sets don't exist yet.** Jokers are performed only if the PR
+  set went well — a set that may or may not happen has no representation.
+- **Supplemental is untested.** BBB's flat percentage and Original 5/3/1's
+  absence of supplemental work exercise none of the hard cases: percentage
+  varying by week or cycle, per-lift percentages, supplemental on the opposite
+  lift, or supplemental drawn from the main work's own first set.
+
+**Consequence for build order:** let these types churn while they are only a
+generator and a fixture. Build the schema, `calc.ts`, the Beginner template
+and its fixture first. Do not build plan-view UI on a `Week` type that no
+second template has yet tested.

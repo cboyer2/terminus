@@ -4,7 +4,7 @@
 @docs/PRD.md
 @docs/ARCHITECTURE.md
 
-Read the PRD for *why* a decision was made and the architecture doc for *how*
+Read the PRD for _why_ a decision was made and the architecture doc for _how_
 it's structured. When they conflict with this file, this file wins.
 
 ## Project
@@ -17,13 +17,7 @@ Design target: minimal, calm. One screen answers "what am I doing, at what weigh
 
 ## How we work
 
-**The owner is learning to build apps. He writes the code; you do not.** This project's purpose is learning, so any code you write on his behalf is a loss, even when it would be faster.
-
-- **Do not write and commit code for him.** Explain the approach, point at the relevant docs, and let him type it.
-- **When asked how to do something, answer the question — don't do the thing.** "How do I wire up Supabase auth?" wants an explanation, not a finished `auth.ts`.
 - **Ask before running anything that changes state** — `git commit`, `git push`, `supabase db push`, `npm install`, file writes.
-- **If code is genuinely needed, write the smallest possible example** and explain what each part does. A snippet to learn from, not a file to accept.
-- **Review, don't repair.** When his code is wrong, say what's wrong and why. Let him fix it.
 - **Ask clarifying questions before detailed answers.** Assumptions produce plausible code built on the wrong premise.
 - **Push back on his ideas when they're wrong.** Agreement he hasn't earned teaches him nothing.
 
@@ -38,31 +32,41 @@ Design target: minimal, calm. One screen answers "what am I doing, at what weigh
 
 Stored state is small and input-only:
 
-- Lifts, each with a **training max seed** and a TM percentage
-- A template ID
-- A programming model (2+1, 2+2, 3+2)
+- **Lifts** — each with a `training_max_seed_lb`, an increment, a stable
+  `lift_key`, and a main/supplemental role. **No percentage on the lift.**
+- **Program** — one row: programming model, training days (2–4), leader
+  template, anchor template (null for beginner), a **plan-wide** TM
+  percentage, and a template-options payload.
 
-Everything else — every cycle, week, set, and weight — is **derived**. The generator is a pure function of stored inputs. No plan is persisted.
+The TM percentage is plan-wide, defaulted from the Leader template, and lives
+on the program — never on the lift and never per phase. The 1RM is not stored;
+it is an entry-time input, and is derivable later as `seed ÷ tm_percentage`.
+
+Everything else — every cycle, week, set, and weight — is **derived**. The
+generator is a pure function of stored inputs. No plan is persisted.
 
 There is no position, no date, no completion state, and no history.
+
+Template specs live in `docs/templates/` and are the hand-verification
+reference for each template record and its fixture.
 
 ## Naming conventions
 
 **Postgres:** `snake_case`, plural table names, `user_id` foreign key on every row, RLS enabled on every table.
 
-**TypeScript:** `camelCase` for variables and functions, `PascalCase` for types and components, `UPPER_SNAKE_CASE` for constants. All files `kebab-case` (`themed-text.tsx`, `use-training-max.ts`) regardless of what they export — the exported component or type name itself stays `PascalCase`.
+**TypeScript:** `camelCase` for variables and functions, `PascalCase` for types and components, `UPPER_SNAKE_CASE` for constants. Component files `PascalCase.tsx`; everything else `kebab-case.ts`.
 
 **Domain terms are precise.** These are all numbers and must never be confused:
 
-| Term | Meaning |
-|---|---|
-| `oneRepMax` | actual or estimated 1RM |
-| `estimatedMax` | `weight × reps × 0.0333 + weight` |
-| `trainingMaxSeed` | stored starting TM for a block |
-| `trainingMax` | derived TM for a given cycle |
-| `tmPercentage` | 0–1 (e.g. `0.85`), never 85 |
-| `workingWeight` | computed, rounded, displayable |
-| `increment` | per-cycle TM bump |
+| Term              | Meaning                           |
+| ----------------- | --------------------------------- |
+| `oneRepMax`       | actual or estimated 1RM           |
+| `estimatedMax`    | `weight × reps × 0.0333 + weight` |
+| `trainingMaxSeed` | stored starting TM for a block    |
+| `trainingMax`     | derived TM for a given cycle      |
+| `tmPercentage`    | 0–1 (e.g. `0.85`), never 85       |
+| `workingWeight`   | computed, rounded, displayable    |
+| `increment`       | per-cycle TM bump                 |
 
 Never name anything bare `max`, `weight`, or `percent`.
 
@@ -79,8 +83,12 @@ No third-party APIs. Ask before adding any dependency.
 ## Architecture rules
 
 - The generator module imports **nothing** — no React, no Supabase, no storage. Numbers in, numbers out.
-- Templates are **composed**. A template *has* a main-work scheme, a supplemental source, a session shape, and assistance targets. These vary independently.
-- Branching on template ID **is allowed in v1** while only one template exists. Mark it with a comment saying it is deliberate and temporary.
+- Templates are **composed**, not inherited. A template *has* a main-work scheme, a supplemental source, a session shape, and assistance targets. These vary independently; inheritance will not model them.
+- Any **prescription** field on a template may be role-keyed (`leader` / `anchor` / `standalone`), resolved by one shared helper. **Setup-constraint fields never are** — and `tmPercentage` in particular is plan-wide and must never vary by role.
+- Branching on template ID **is allowed while only one template exists**.
+  Mark it with a comment saying it is deliberate and temporary. **The
+  exception expires when the second template lands** — Original BBB is next,
+  and it must be added by writing a template record, not by adding a branch.
 - Verify weights against the source material with a frozen fixture test, not by inspection.
 
 ## DO NOT
@@ -93,4 +101,3 @@ No third-party APIs. Ask before adding any dependency.
 - **Do not support other programs** — 5/3/1 only.
 - **Do not add** rest timers, exercise videos, form checks, wearable/HealthKit integration, nutrition or bodyweight tracking.
 - **Do not reproduce book text verbatim.** Paraphrase; the source material is Jim Wendler's.
-
