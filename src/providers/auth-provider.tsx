@@ -1,5 +1,6 @@
 import { supabase } from "@/data/supabase";
 import { AuthContext } from "@/hooks/use-auth-context";
+import type { JwtPayload } from "@supabase/supabase-js";
 import * as Linking from "expo-linking";
 import { PropsWithChildren, useEffect, useState } from "react";
 
@@ -15,9 +16,7 @@ function handleDeepLink(url: string) {
 }
 
 export default function AuthProvider({ children }: PropsWithChildren) {
-  const [claims, setClaims] = useState<
-    Record<string, any> | undefined | null
-  >();
+  const [claims, setClaims] = useState<JwtPayload | undefined | null>();
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Fetch the claims once, and subscribe to auth state changes
@@ -40,7 +39,6 @@ export default function AuthProvider({ children }: PropsWithChildren) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, _session) => {
-      console.log("Auth state changed:", { event: _event });
       const { data } = await supabase.auth.getClaims();
       setClaims(data?.claims ?? null);
     });

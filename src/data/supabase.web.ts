@@ -18,15 +18,27 @@ const ExpoWebSecureStoreAdapter = {
   },
 };
 
-export const supabase = createClient(
-  process.env.EXPO_PUBLIC_SUPABASE_URL ?? "",
-  process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "",
-  {
-    auth: {
-      storage: ExpoWebSecureStoreAdapter,
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: false,
-    },
-  },
+function requireEnv(name: string, value: string | undefined): string {
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+}
+
+const supabaseUrl = requireEnv(
+  "EXPO_PUBLIC_SUPABASE_URL",
+  process.env.EXPO_PUBLIC_SUPABASE_URL,
 );
+const supabaseKey = requireEnv(
+  "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+  process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+);
+
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    storage: ExpoWebSecureStoreAdapter,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
+  },
+});

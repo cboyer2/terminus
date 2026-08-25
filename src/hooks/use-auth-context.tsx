@@ -1,7 +1,8 @@
+import type { JwtPayload } from "@supabase/supabase-js";
 import { createContext, useContext } from "react";
 
 export type AuthData = {
-  claims?: Record<string, any> | null;
+  claims?: JwtPayload | null;
   isLoading: boolean;
   isLoggedIn: boolean;
 };

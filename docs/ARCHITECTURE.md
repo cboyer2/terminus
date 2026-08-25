@@ -164,7 +164,7 @@ the generator, render.
 app/
   index.tsx           cheat sheet — current cycle/week, computed weights
   maxes.tsx           enter/edit lifts + estimated-max calculator
-  template.tsx        template + programming model picker, template library
+  templates.tsx        template + programming model picker, template library
 hooks/
   use-lifts.ts        wraps data/lifts.ts + cache
   use-plan.ts         wraps data/program.ts, then calls generator/cycles.ts
