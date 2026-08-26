@@ -107,12 +107,17 @@ export type AssistanceCategory = "push" | "pull" | "singleLegCore";
 export type AssistanceTargets = Record<AssistanceCategory, Range>;
 
 /**
- * Free-text reference guidance — conditioning is shown for reference only,
- * never tracked or computed (see PRD §4). Covers cases that don't reduce
- * to a clean structure, like Beginner's running program (mileage or track
- * intervals) versus Original BBB's hard/easy conditioning-day counts.
+ * Free-text reference guidance — conditioning and warm-up are shown for
+ * reference only, never tracked or computed (see PRD §4). Covers cases that
+ * don't reduce to a clean structure, like Beginner's running program
+ * (mileage or track intervals) versus Original BBB's hard/easy
+ * conditioning-day counts, or Beginner's assistance section, which offers
+ * two exercise slots under `singleLegCore` rather than one rep range.
  */
 export type Guidance = string;
+
+/** Structured per-category targets where a template fits that shape; free text where it doesn't (see Beginner). */
+export type AssistanceContent = AssistanceTargets | Guidance;
 
 export interface Template {
   id: TemplateId;
@@ -130,8 +135,10 @@ export interface Template {
   sessionShape: Partial<Record<TrainingDayCount, SessionShape>>;
   mainWork: ByRole<MainWorkScheme>;
   supplemental: ByRole<SupplementalPrescription>;
-  assistance: ByRole<AssistanceTargets>;
+  assistance: ByRole<AssistanceContent>;
   jumpsAndThrows: ByRole<Range>;
+  /** PRD §1.8 lists warm-up/mobility as shown on the cheat sheet; ARCHITECTURE.md's prescription list omitted it. */
+  warmUp?: ByRole<Guidance>;
   conditioning?: ByRole<Guidance>;
 }
 
