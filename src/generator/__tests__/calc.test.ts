@@ -21,6 +21,20 @@ describe("roundToNearestFive", () => {
     // 325 * 0.7 === 227.49999999999997, same failure mode.
     expect(roundToNearestFive(325 * 0.7)).toBe(230);
   });
+
+  it("does not misround a genuinely non-tie value near a boundary", () => {
+    // A training max rescaled per docs/ARCHITECTURE.md's percentage-change
+    // formula (455 lb seed, 0.8 -> 0.825) then run through a 32.5% working
+    // weight lands at 152.49609375 - genuinely closer to 150 than 155
+    // (0.00390625 lb short of the true tie), not a floating-point artifact.
+    // A blunt "round to hundredths first" pre-pass snaps this to x.50 and
+    // force-rounds it up to the wrong bucket; it must round down to 150.
+    const oldSeedLb = 455;
+    const oldTmPercentage = 0.8;
+    const newTmPercentage = 0.825;
+    const rescaledSeedLb = oldSeedLb * (newTmPercentage / oldTmPercentage);
+    expect(roundToNearestFive(rescaledSeedLb * 0.325)).toBe(150);
+  });
 });
 
 describe("estimatedMax", () => {
