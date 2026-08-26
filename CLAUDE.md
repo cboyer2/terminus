@@ -83,7 +83,7 @@ No third-party APIs. Ask before adding any dependency.
 ## Architecture rules
 
 - The generator module imports **nothing** — no React, no Supabase, no storage. Numbers in, numbers out.
-- Templates are **composed**, not inherited. A template *has* a main-work scheme, a supplemental source, a session shape, and assistance targets. These vary independently; inheritance will not model them.
+- Templates are **composed**, not inherited. A template _has_ a main-work scheme, a supplemental source, a session shape, and assistance targets. These vary independently; inheritance will not model them.
 - Any **prescription** field on a template may be role-keyed (`leader` / `anchor` / `standalone`), resolved by one shared helper. **Setup-constraint fields never are** — and `tmPercentage` in particular is plan-wide and must never vary by role.
 - Branching on template ID **is allowed while only one template exists**.
   Mark it with a comment saying it is deliberate and temporary. **The

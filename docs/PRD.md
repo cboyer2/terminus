@@ -1,6 +1,6 @@
 # PRD — Terminus
 
-*A 5/3/1 planner and cheat sheet.*
+_A 5/3/1 planner and cheat sheet._
 
 **Version:** 0.4 · **Owner:** you · **Status:** pre-build
 
@@ -14,12 +14,12 @@ A personal planning tool that turns a set of maxes and a chosen 5/3/1 template i
 
 1. **Choose a programming model.** Four options, each fixing the cycle count:
 
-   | Model | Structure | Cycles |
-   |---|---|---|
-   | Beginner | single template, no Leader/Anchor split | 1 |
-   | 2 + 1 | 2 Leader cycles, 1 Anchor cycle | 3 |
-   | 2 + 2 | 2 Leader cycles, 2 Anchor cycles | 4 |
-   | 3 + 2 | 3 Leader cycles, 2 Anchor cycles | 5 |
+   | Model    | Structure                               | Cycles |
+   | -------- | --------------------------------------- | ------ |
+   | Beginner | single template, no Leader/Anchor split | 1      |
+   | 2 + 1    | 2 Leader cycles, 1 Anchor cycle         | 3      |
+   | 2 + 2    | 2 Leader cycles, 2 Anchor cycles        | 4      |
+   | 3 + 2    | 3 Leader cycles, 2 Anchor cycles        | 5      |
 
 2. **Choose training days.** Between 2 and 4. This drives how lifts map to sessions and filters which templates are available.
 3. **Choose templates.** Beginner model uses the Beginner template and skips this step. Otherwise pick the Leader first, from templates compatible with the chosen day count; the Anchor list is then filtered to those the Leader can be followed by. A template may be Leader-eligible, Anchor-eligible, or both; the Beginner template is neither, and is only valid with the Beginner model.
@@ -39,6 +39,7 @@ A personal planning tool that turns a set of maxes and a chosen 5/3/1 template i
    - **Stalled lift** — subtract three increments from that lift's seed. A stall is per-lift and can occur at any point in a block, not only at its end. No input required; this is arithmetic, not history.
 
    Seeds are the only stored maxes; every cycle's training max is derived from them. Adjusting one lift's seed changes that lift's numbers and nothing else — the other lifts re-derive to exactly what they showed before, so there is nothing to restart. Because no position is tracked, a lift whose seed drops three increments simply shows lighter weights wherever you happen to be in the block. Updates are instant and in place.
+
 10. **Browse the template library.** Templates with their Leader/Anchor eligibility, supported day counts, intended TM percentage or range, and assistance/conditioning guidance.
 
 **Changing your mind later** uses the same screens as setup, reachable individually. Swapping just the Anchor template does not mean walking the whole flow again.

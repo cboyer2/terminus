@@ -52,7 +52,7 @@ that true:
 
   **Setup constraints** — what the pickers need:
   - **role eligibility** — Leader, Anchor, both, or neither. The Beginner
-    template is *neither*, and is valid only with the Beginner programming
+    template is _neither_, and is valid only with the Beginner programming
     model.
   - **compatible anchors** — on Leader-eligible templates, the set of Anchor
     templates that may follow it. The book specifies these per Leader rather
@@ -73,11 +73,11 @@ that true:
 role** — `leader`, `anchor`, or `standalone`. One resolver reads it:
 
 ```ts
-type ByRole<T> = T | { leader?: T; anchor?: T; standalone?: T; default: T }
+type ByRole<T> = T | { leader?: T; anchor?: T; standalone?: T; default: T };
 ```
 
 This exists because the book's own answer to "how do I run Original 5/3/1 as
-both a Leader and an Anchor" is *change the assistance volume* — higher for
+both a Leader and an Anchor" is _change the assistance volume_ — higher for
 the first two to three cycles, lower for the final two to three, with main
 work, jumps/throws and conditioning unchanged. Modelling that as two
 near-identical template records would duplicate everything to vary three
@@ -99,14 +99,15 @@ anchors, and supported day counts are flat by definition. Most importantly:
 fields differ by role, it isn't one template with role-keyed fields — it's two
 templates, and should be split.
 
-  The generator reads this record; it never branches on template name —
-  except the one deliberate, commented exception `CLAUDE.md` allows for v1's
-  single Beginner template.
+The generator reads this record; it never branches on template name —
+except the one deliberate, commented exception `CLAUDE.md` allows for v1's
+single Beginner template.
+
 - **One shared calc module.** Rounding, TM-from-seed, percentage-to-weight —
   one function each, called everywhere. This is where the "hardcode math in
   only one place" rule lives.
 
-**Session shape is a function of template *and* training days**, not a
+**Session shape is a function of template _and_ training days**, not a
 template property alone. Two days means two main lifts per session; four
 means one. The template declares which day counts it supports; the generator
 maps lifts to sessions given the chosen count.
@@ -155,7 +156,7 @@ sheet screen, template browser — is a view over its output.
 ### A cycle is three progression steps per lift, not three calendar weeks
 
 Every 5/3/1 cycle gives each lift three progression steps — the 5s, 3s and 1s
-weeks, whatever the template calls them. How many *calendar* weeks that spans
+weeks, whatever the template calls them. How many _calendar_ weeks that spans
 falls out of the session shape:
 
 - One main lift per day, four days → three calendar weeks
@@ -167,7 +168,7 @@ So `Week` is a poor name for the unit. The generator should count progression
 steps per lift and let calendar grouping be a rendering concern.
 
 **Consequence for the UI:** on an A/B template a single calendar week contains
-lifts at *different* progression steps. The cheat sheet cannot assume "week two
+lifts at _different_ progression steps. The cheat sheet cannot assume "week two
 means every lift is at week-two percentages." Since the app tracks no dates,
 the safest presentation is an ordered list of sessions rather than a
 calendar-week grid.
@@ -236,6 +237,7 @@ Five things worth noting about that shape:
   **Per-lift is permitted; per-phase is not.** Varying the percentage between
   Leader and Anchor is the thing this design removed, and an override must
   never be used to reintroduce it.
+
 - **The 1RM is not stored.** It is an entry-time convenience only — the seed
   is computed from it at setup and the 1RM discarded. It is derivable as
   `seed ÷ effectivePercentage(lift)`, and after a few cycles of progression
@@ -261,7 +263,7 @@ percentage is edited by hand.
 
 Templates themselves are **not** a table — they're code
 (`generator/templates/*.ts`), since the library is curated, not user-authored
-(an explicit non-goal in the PRD). `program` records *which* templates are
+(an explicit non-goal in the PRD). `program` records _which_ templates are
 selected, not what they contain.
 
 RLS: every row scoped by `auth.uid() = user_id` — one policy per table, not

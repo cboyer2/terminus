@@ -1,6 +1,6 @@
 # Template spec — Beginner Prep School
 
-Source: *5/3/1 Forever*, Beginner Prep School chapter. Paraphrased for personal
+Source: _5/3/1 Forever_, Beginner Prep School chapter. Paraphrased for personal
 use. This is the hand-verification reference for the `beginner` template record
 and its fixture.
 
@@ -8,14 +8,14 @@ and its fixture.
 
 ## Identity and constraints
 
-| Field | Value |
-|---|---|
-| `id` | `beginner` |
-| Role eligibility | **Neither Leader nor Anchor** — valid only with the Beginner programming model |
-| Supported day counts | **3 only** |
-| TM percentage | 85–90%, **assigned per lift** — see the conflict note below |
-| Compatible anchors | none |
-| Cycles | 1 per plan, repeated indefinitely. The book states there is no timetable and to milk the program as long as possible |
+| Field                | Value                                                                                                                |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `id`                 | `beginner`                                                                                                           |
+| Role eligibility     | **Neither Leader nor Anchor** — valid only with the Beginner programming model                                       |
+| Supported day counts | **3 only**                                                                                                           |
+| TM percentage        | 85–90%, **assigned per lift** — see the conflict note below                                                          |
+| Compatible anchors   | none                                                                                                                 |
+| Cycles               | 1 per plan, repeated indefinitely. The book states there is no timetable and to milk the program as long as possible |
 
 ## Session shape
 
@@ -34,18 +34,18 @@ not the one-lift-per-day shape.
 
 Identical for both workouts:
 
-| Week | Main sets | Supplemental |
-|---|---|---|
-| 1 | 70% × 5, 80% × 5, 90% × 5 | 5 × 5 @ 70% |
-| 2 | 65% × 5, 75% × 5, 85% × 5 | 5 × 5 @ 65% |
-| 3 | 75% × 5, 85% × 5, 95% × 5 | 5 × 5 @ 75% |
+| Week | Main sets                 | Supplemental |
+| ---- | ------------------------- | ------------ |
+| 1    | 70% × 5, 80% × 5, 90% × 5 | 5 × 5 @ 70%  |
+| 2    | 65% × 5, 75% × 5, 85% × 5 | 5 × 5 @ 65%  |
+| 3    | 75% × 5, 85% × 5, 95% × 5 | 5 × 5 @ 75%  |
 
 Three things to notice:
 
 - **Main work is all fives** (5's PRO), in the **3/5/1 week ordering** — week
   one opens at 70%, not 65%. No PR sets.
-- **Supplemental is First Set Last**, so its percentage is *derived from the
-  main work's first set* and therefore **varies by week**.
+- **Supplemental is First Set Last**, so its percentage is _derived from the
+  main work's first set_ and therefore **varies by week**.
 - **Supplemental source varies per lift.** For the weaker lifts — the ones
   assigned an 85% training max — the book uses **Second Set Last** instead of
   First Set Last, same 5 × 5.
@@ -89,12 +89,12 @@ strong landing. Depth jumps are explicitly not advised.
 Four exercises per workout, 3–5 sets each, performed as a circuit five times
 through, target 20 minutes.
 
-| Exercise | Total reps |
-|---|---|
-| KB swing / KB snatch, or DB or bodyweight squat | 25–100 |
-| Push-ups / dips | 25–100 |
-| Chin-ups / pull-ups (inverted rows if unable) | 25–50 |
-| Ab wheel / hanging leg raise | 25–50 |
+| Exercise                                        | Total reps |
+| ----------------------------------------------- | ---------- |
+| KB swing / KB snatch, or DB or bodyweight squat | 25–100     |
+| Push-ups / dips                                 | 25–100     |
+| Chin-ups / pull-ups (inverted rows if unable)   | 25–50      |
+| Ab wheel / hanging leg raise                    | 25–50      |
 
 Single-leg work substitutes at 5–10 reps, competence permitting.
 
@@ -103,12 +103,12 @@ Single-leg work substitutes at 5–10 reps, competence permitting.
 Three times a week, one mile minimum and no more than three. Alternatively one
 of these track sessions:
 
-| Distance | Runs |
-|---|---|
-| 100 m | 10–16 |
-| 200 m | 6–8 |
-| 400 m | 4–6 |
-| 800 m | 2–3 |
+| Distance | Runs  |
+| -------- | ----- |
+| 100 m    | 10–16 |
+| 200 m    | 6–8   |
+| 400 m    | 4–6   |
+| 800 m    | 2–3   |
 
 Prowler or sled substitutes for those who can't squat well.
 
