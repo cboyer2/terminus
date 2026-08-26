@@ -6,7 +6,7 @@
 // threaded through here — they don't depend on training maxes, so the UI
 // reads them straight off the selected Template record instead.
 
-import { percentagesMatch, trainingMax, workingWeight } from "./calc";
+import { trainingMax, workingWeight } from "./calc";
 import type {
   ByRole,
   Cycle,
@@ -46,7 +46,11 @@ export function generatePlan(input: GeneratePlanInput): Plan {
     // A phase transition needs a 7th Week Protocol deload, and the plan
     // always closes with a TM test — neither is implemented yet, since no
     // template with a Leader/Anchor pairing exists to generate one from.
-    // See docs/ARCHITECTURE.md §8.
+    // See docs/ARCHITECTURE.md §8. Note for whoever implements this: a
+    // later phase's training max can't just keep applying cycleNumber
+    // against its own template's incrementOverrides — already-elapsed
+    // cycles progressed under an earlier phase's template, which may
+    // override a lift's increment differently.
     throw new Error("Multi-phase programming models are not yet implemented");
   }
 
@@ -78,6 +82,11 @@ export function generatePlan(input: GeneratePlanInput): Plan {
   return { cycles };
 }
 
+interface ResolvedLift {
+  trainingMaxLb: number;
+  effectivePercentage: number;
+}
+
 interface GenerateCycleInput {
   template: Template;
   phaseRole: ProgrammingPhaseRole;
@@ -98,6 +107,29 @@ function generateCycle(input: GenerateCycleInput): Cycle {
   const mainWorkScheme = resolveByRole(template.mainWork, phaseRole);
   const supplementalPrescription = resolveByRole(template.supplemental, phaseRole);
 
+  // Resolved once per cycle, not once per session — a lift's training max
+  // and effective percentage don't vary across the cycle's progression
+  // steps, only across cycles.
+  const liftKeysInSession = new Set(sessionShape.workouts.flatMap((workout) => workout.liftKeys));
+  const resolvedLifts = new Map<LiftKey, ResolvedLift>();
+  for (const liftKey of liftKeysInSession) {
+    const lift = liftsByKey.get(liftKey);
+    if (!lift) {
+      throw new Error(`Missing lift data for "${liftKey}"`);
+    }
+    if (lift.role !== "main") {
+      // Every LiftKey today is inherently a main lift, so this can't fire
+      // yet — but the data model allows role: "supplemental", and nothing
+      // downstream knows how to schedule one as main work.
+      throw new Error(`"${liftKey}" is scheduled as main work by "${template.id}" but is stored with role "${lift.role}"`);
+    }
+    const incrementLb = template.incrementOverrides?.[liftKey] ?? lift.incrementLb;
+    resolvedLifts.set(liftKey, {
+      trainingMaxLb: trainingMax(lift.trainingMaxSeedLb, incrementLb, cycleNumber),
+      effectivePercentage: lift.tmPercentageOverride ?? planTmPercentage,
+    });
+  }
+
   // A cycle is an ordered, flat list of sessions, not a calendar-week grid —
   // see the Week type's own comment in types.ts.
   const weeks: Week[] = [];
@@ -110,9 +142,7 @@ function generateCycle(input: GenerateCycleInput): Cycle {
           progressionStep,
           mainWorkSets: mainWorkScheme[progressionStep - 1],
           supplementalPrescription,
-          cycleNumber,
-          liftsByKey,
-          planTmPercentage,
+          resolvedLifts,
         }),
       );
     }
@@ -127,23 +157,22 @@ interface GenerateSessionInput {
   progressionStep: 1 | 2 | 3;
   mainWorkSets: MainWorkSet[];
   supplementalPrescription: SupplementalPrescription;
-  cycleNumber: number;
-  liftsByKey: Map<LiftKey, Lift>;
-  planTmPercentage: number;
+  resolvedLifts: Map<LiftKey, ResolvedLift>;
 }
 
 function generateSession(input: GenerateSessionInput): Week {
   const sets: PlannedSet[] = [];
 
   for (const liftKey of input.workout.liftKeys) {
-    const lift = input.liftsByKey.get(liftKey);
-    if (!lift) {
-      throw new Error(`Missing lift data for "${liftKey}"`);
+    // generateCycle resolves every lift key its own session shape
+    // references before generating any session, so this is unreachable —
+    // guarded rather than asserted with `!`, since a thrown error beats a
+    // silent `undefined` crash deeper in the call stack.
+    const resolved = input.resolvedLifts.get(liftKey);
+    if (!resolved) {
+      throw new Error(`No resolved data for "${liftKey}"`);
     }
-
-    const incrementLb = input.template.incrementOverrides?.[liftKey] ?? lift.incrementLb;
-    const trainingMaxLb = trainingMax(lift.trainingMaxSeedLb, incrementLb, input.cycleNumber);
-    const effectivePercentage = lift.tmPercentageOverride ?? input.planTmPercentage;
+    const { trainingMaxLb, effectivePercentage } = resolved;
 
     for (const mainSet of input.mainWorkSets) {
       sets.push({
@@ -191,14 +220,29 @@ function resolveSupplementalPercentage(input: ResolveSupplementalPercentageInput
     case "flat-percentage":
       return source.tmPercentage;
     case "first-set-last":
-      return input.mainWorkSets[0].tmPercentage;
+      return requireMainWorkSet(input.template, input.mainWorkSets, 0).tmPercentage;
     case "second-set-last":
-      return input.mainWorkSets[1].tmPercentage;
+      return requireMainWorkSet(input.template, input.mainWorkSets, 1).tmPercentage;
     default: {
       const exhaustiveCheck: never = source;
       throw new Error(`Unhandled supplemental source: ${JSON.stringify(exhaustiveCheck)}`);
     }
   }
+}
+
+/**
+ * `MainWorkSet[]` carries no minimum-length guarantee — a future template
+ * with, say, a single top-set progression step paired with a Second Set
+ * Last supplemental source would otherwise crash on an unguarded index.
+ */
+function requireMainWorkSet(template: Template, mainWorkSets: MainWorkSet[], index: number): MainWorkSet {
+  const set = mainWorkSets[index];
+  if (!set) {
+    throw new Error(
+      `"${template.id}"'s supplemental source needs at least ${index + 1} main work set(s) this progression step, but only ${mainWorkSets.length} exist`,
+    );
+  }
+  return set;
 }
 
 /**
@@ -213,14 +257,23 @@ function effectiveSupplementalSource(
   effectivePercentage: number,
   declaredSource: SupplementalSource,
 ): SupplementalSource {
-  if (
-    template.id === "beginner" &&
-    template.tmPercentage.kind === "range" &&
-    percentagesMatch(effectivePercentage, template.tmPercentage.min)
-  ) {
+  if (template.id === "beginner" && template.tmPercentage.kind === "range" && isWeakLiftPercentage(effectivePercentage, template.tmPercentage)) {
     return { kind: "second-set-last" };
   }
   return declaredSource;
+}
+
+/**
+ * Closer to a TM range's low end than its high end. The book assigns each
+ * lift one of two values (90% for stronger lifts, 85% for weaker ones), so
+ * this is a binary classification, not a continuous one — but it's checked
+ * by proximity rather than exact equality to the range minimum, so an
+ * override that isn't a bit-identical 0.85 (0.87, say, entered through a
+ * future non-binary percentage picker) still lands on the correct side.
+ */
+function isWeakLiftPercentage(percentage: number, range: { min: number; max: number }): boolean {
+  const midpoint = (range.min + range.max) / 2;
+  return percentage < midpoint;
 }
 
 /**

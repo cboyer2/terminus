@@ -44,23 +44,13 @@ export function workingWeight(baseLb: number, percentage: number): number {
 /**
  * Derives a cycle's training max from a lift's stored seed: the seed plus
  * one increment per cycle already elapsed. `cycleNumber` is 1-based, so
- * cycle 1 returns the seed unchanged. No rounding needed — a seed and an
- * increment are already 5 lb-aligned, and this is plain addition, not a
- * percentage multiplication that could introduce floating-point noise.
+ * cycle 1 returns the seed unchanged. A seed and an increment should
+ * already be 5 lb-aligned by the time they're stored, but `lifts.*` are
+ * unconstrained Postgres `numeric` columns — this is a database read, a
+ * system boundary, not internal code this function can just trust — so it
+ * rounds defensively rather than propagating a misaligned value forward
+ * into every displayed weight for the rest of the cycle.
  */
 export function trainingMax(seedLb: number, incrementLb: number, cycleNumber: number): number {
-  return seedLb + (cycleNumber - 1) * incrementLb;
-}
-
-/**
- * Compares two 0-1 TM percentages with tolerance for floating-point noise —
- * both `program.tm_percentage` and `lifts.tm_percentage_override` are
- * unconstrained Postgres `numeric` columns, so a round-tripped value can
- * differ from a literal like 0.85 by less than a millionth without being a
- * genuinely different percentage. The epsilon is far tighter than any real
- * percentage choice (a tenth of a point is 100,000x larger) and far looser
- * than IEEE-754 noise (~1e-16).
- */
-export function percentagesMatch(a: number, b: number): boolean {
-  return Math.abs(a - b) < 1e-6;
+  return roundToNearestFive(seedLb + (cycleNumber - 1) * incrementLb);
 }

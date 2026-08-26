@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { estimatedMax, percentagesMatch, roundToNearestFive, trainingMax, workingWeight } from "../calc";
+import { estimatedMax, roundToNearestFive, trainingMax, workingWeight } from "../calc";
 
 describe("roundToNearestFive", () => {
   it("rounds down below the midpoint", () => {
@@ -64,6 +64,14 @@ describe("trainingMax", () => {
   it("uses whatever increment it's given, e.g. Beginner's +5 squat/deadlift override", () => {
     expect(trainingMax(300, 5, 3)).toBe(310);
   });
+
+  it("rounds defensively if a stored seed or increment weren't 5 lb-aligned", () => {
+    // lifts.training_max_seed_lb / increment_lb are unconstrained numeric
+    // columns - nothing in the schema stops a misaligned value from
+    // reaching here. 301 + 1x7 = 308, which must land on 310, not pass
+    // 308 straight through.
+    expect(trainingMax(301, 7, 2)).toBe(310);
+  });
 });
 
 describe("workingWeight", () => {
@@ -91,20 +99,5 @@ describe("workingWeight", () => {
   it("computes a training max seed from a one-rep max, same math as any other percentage", () => {
     // Same worked figure as estimatedMax's fixture: a 350 lb 1RM at 90%.
     expect(workingWeight(350, 0.9)).toBe(315);
-  });
-});
-
-describe("percentagesMatch", () => {
-  it("matches identical percentages", () => {
-    expect(percentagesMatch(0.85, 0.85)).toBe(true);
-  });
-
-  it("tolerates floating-point noise from a round-tripped numeric column", () => {
-    expect(percentagesMatch(0.85, 0.8500000000000001)).toBe(true);
-  });
-
-  it("rejects a genuinely different percentage", () => {
-    expect(percentagesMatch(0.85, 0.9)).toBe(false);
-    expect(percentagesMatch(0.85, 0.86)).toBe(false);
   });
 });

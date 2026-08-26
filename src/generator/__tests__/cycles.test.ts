@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generatePlan } from "../cycles";
 import { beginnerTemplate } from "../templates/beginner";
-import type { Lift, PlannedSet, ProgrammingModel } from "../types";
+import type { Lift, PlannedSet, ProgrammingModel, Template } from "../types";
 
 // Independently hand-computed (not derived from cycles.ts — see the node
 // script this was generated and cross-checked with) for four round-number
@@ -153,5 +153,82 @@ describe("generatePlan (Beginner, cycle 2 — incrementOverrides)", () => {
     // Seed 200 + 1 x 5 (bench has no override, and its fallback is already
     // +5) = 205 TM.
     expect(benchMains).toEqual([145, 165, 185]);
+  });
+});
+
+describe("generatePlan (Beginner, weak-lift classification by proximity)", () => {
+  // A 0.87 override isn't the book's exact 85% assignment, but it's still
+  // meant to signal "weaker lift" - closer to the range's 0.85 end than its
+  // 0.9 end. An exact-equality check against 0.85 would miss this and
+  // silently fall back to First Set Last.
+  const liftsWithNearWeakPress: Lift[] = lifts.map((lift) => (lift.liftKey === "press" ? { ...lift, tmPercentageOverride: 0.87 } : lift));
+
+  const plan = generatePlan({
+    lifts: liftsWithNearWeakPress,
+    programmingModel: beginnerProgrammingModel,
+    tmPercentage: 0.9,
+    templatesByRole: { standalone: beginnerTemplate },
+    trainingDays: 3,
+  });
+
+  it("still applies Second Set Last for an override that isn't bit-identical to 0.85", () => {
+    // Workout B (deadlift + press), step 1, is plan.cycles[0].weeks[1].
+    const pressSupplemental = plan.cycles[0].weeks[1].sets.filter((s) => s.liftKey === "press" && s.role === "supplemental");
+    // SSL -> step 1's second main set, 80% of a 150 lb seed = 120. FSL
+    // (the bug) would instead use the first main set, 70% = 105.
+    expect(pressSupplemental).toHaveLength(5);
+    expect(pressSupplemental[0].tmPercentage).toBe(0.8);
+    expect(pressSupplemental[0].weightLb).toBe(120);
+  });
+});
+
+// A minimal synthetic template — not Beginner, which always has 3 main sets
+// per progression step and only ever schedules main-role lifts — used to
+// exercise two guards no shipped template currently reaches.
+const singleSetTemplate: Template = {
+  id: "test-single-set",
+  name: "Test Single Set",
+  roleEligibility: "neither",
+  compatibleAnchors: [],
+  supportedDayCounts: [2],
+  tmPercentage: { kind: "fixed", value: 0.9 },
+  sessionShape: { 2: { workouts: [{ id: "a", liftKeys: ["squat"] }] } },
+  mainWork: [[{ tmPercentage: 0.7, reps: 1 }], [{ tmPercentage: 0.7, reps: 1 }], [{ tmPercentage: 0.7, reps: 1 }]],
+  supplemental: { sets: 1, reps: 1, source: { kind: "second-set-last" } },
+  assistance: "n/a",
+  jumpsAndThrows: { min: 0, max: 0 },
+};
+
+describe("generatePlan (defensive guards)", () => {
+  it("throws a clear error instead of crashing when a supplemental source needs more main sets than a template declares", () => {
+    const lifts: Lift[] = [{ liftKey: "squat", role: "main", trainingMaxSeedLb: 300, tmPercentageOverride: null, incrementLb: 10 }];
+
+    expect(() =>
+      generatePlan({
+        lifts,
+        programmingModel: { id: "beginner", phases: [{ role: "standalone", cycles: 1 }] },
+        tmPercentage: 0.9,
+        templatesByRole: { standalone: singleSetTemplate },
+        trainingDays: 2,
+      }),
+    ).toThrow(/needs at least 2 main work set/);
+  });
+
+  it("throws a clear error rather than silently scheduling a supplemental-role lift as main work", () => {
+    const lifts: Lift[] = [{ liftKey: "squat", role: "supplemental", trainingMaxSeedLb: 300, tmPercentageOverride: null, incrementLb: 10 }];
+    const template: Template = {
+      ...singleSetTemplate,
+      supplemental: { sets: 1, reps: 1, source: { kind: "flat-percentage", tmPercentage: 0.5 } },
+    };
+
+    expect(() =>
+      generatePlan({
+        lifts,
+        programmingModel: { id: "beginner", phases: [{ role: "standalone", cycles: 1 }] },
+        tmPercentage: 0.9,
+        templatesByRole: { standalone: template },
+        trainingDays: 2,
+      }),
+    ).toThrow(/is stored with role "supplemental"/);
   });
 });
