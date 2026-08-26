@@ -1,6 +1,6 @@
 # PRD — Terminus
 
-*A 5/3/1 planner and cheat sheet.*
+_A 5/3/1 planner and cheat sheet._
 
 **Version:** 0.4 · **Owner:** you · **Status:** pre-build
 
@@ -14,12 +14,12 @@ A personal planning tool that turns a set of maxes and a chosen 5/3/1 template i
 
 1. **Choose a programming model.** Four options, each fixing the cycle count:
 
-   | Model | Structure | Cycles |
-   |---|---|---|
-   | Beginner | single template, no Leader/Anchor split | 1 |
-   | 2 + 1 | 2 Leader cycles, 1 Anchor cycle | 3 |
-   | 2 + 2 | 2 Leader cycles, 2 Anchor cycles | 4 |
-   | 3 + 2 | 3 Leader cycles, 2 Anchor cycles | 5 |
+   | Model    | Structure                               | Cycles |
+   | -------- | --------------------------------------- | ------ |
+   | Beginner | single template, no Leader/Anchor split | 1      |
+   | 2 + 1    | 2 Leader cycles, 1 Anchor cycle         | 3      |
+   | 2 + 2    | 2 Leader cycles, 2 Anchor cycles        | 4      |
+   | 3 + 2    | 3 Leader cycles, 2 Anchor cycles        | 5      |
 
 2. **Choose training days.** Between 2 and 4. This drives how lifts map to sessions and filters which templates are available.
 3. **Choose templates.** Beginner model uses the Beginner template and skips this step. Otherwise pick the Leader first, from templates compatible with the chosen day count; the Anchor list is then filtered to those the Leader can be followed by. A template may be Leader-eligible, Anchor-eligible, or both; the Beginner template is neither, and is only valid with the Beginner model.
@@ -28,7 +28,7 @@ A personal planning tool that turns a set of maxes and a chosen 5/3/1 template i
 6. **Enter maxes.** Actual or estimated 1RM for the four main lifts plus whatever supplemental lifts the chosen templates require — which is why this comes after template selection, not before. Built-in estimator: `weight × reps × 0.0333 + weight`.
 7. **Review and approve.** Training max seeds are computed from the entered 1RMs and the chosen percentage, and the full plan is generated. The 1RMs themselves are not kept — the seed is the stored value from here on.
 
-**The generated plan** runs Leader cycles → 7th Week Protocol deload → Anchor cycles → 7th Week Protocol TM test. The closing week is always a TM test, never a PR test. The Beginner model's single cycle has no Leader/Anchor boundary and therefore no mid-plan deload.
+**The generated plan** runs Leader cycles → 7th Week Protocol deload → Anchor cycles → 7th Week Protocol TM test. The closing week is always a TM test, never a PR test, for every programming model including Beginner. The Beginner model's single cycle has no Leader/Anchor boundary and therefore no mid-plan deload — it goes straight from its one cycle to the closing TM test.
 
 **Then, day to day:**
 
@@ -39,6 +39,7 @@ A personal planning tool that turns a set of maxes and a chosen 5/3/1 template i
    - **Stalled lift** — subtract three increments from that lift's seed. A stall is per-lift and can occur at any point in a block, not only at its end. No input required; this is arithmetic, not history.
 
    Seeds are the only stored maxes; every cycle's training max is derived from them. Adjusting one lift's seed changes that lift's numbers and nothing else — the other lifts re-derive to exactly what they showed before, so there is nothing to restart. Because no position is tracked, a lift whose seed drops three increments simply shows lighter weights wherever you happen to be in the block. Updates are instant and in place.
+
 10. **Browse the template library.** Templates with their Leader/Anchor eligibility, supported day counts, intended TM percentage or range, and assistance/conditioning guidance.
 
 **Changing your mind later** uses the same screens as setup, reachable individually. Swapping just the Anchor template does not mean walking the whole flow again.

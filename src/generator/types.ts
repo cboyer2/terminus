@@ -6,10 +6,18 @@
 // from data/ and app/ as arguments, never the other way around.
 //
 // Scoped to what the Beginner template needs. Per docs/ARCHITECTURE.md §8,
-// several shapes here (Week's deload/tmTest/prTest kinds, multi-day-count
-// session shapes, AMRAP/PR-set flags) are expected to be exercised — and
-// possibly reshaped — once a second template and a non-Beginner programming
-// model are built. That churn is planned, not a bug in this first pass.
+// some shapes here (multi-day-count session shapes, AMRAP/PR-set flags) are
+// expected to be exercised — and possibly reshaped — once a second template
+// and a non-Beginner programming model are built. That churn is planned,
+// not a bug in this first pass.
+//
+// Week's "deload" and "tmTest" kinds are both exercised by Beginner despite
+// it being single-phase: every plan, Beginner included, closes with a 7th
+// Week TM test (PRD §1), so Beginner's plan is [cycle of "main" sessions,
+// then one closing "tmTest" session] — it just never produces a mid-plan
+// "deload" (that only occurs between Leader and Anchor phases). "prTest"
+// stays unused everywhere per PRD §1: "The closing week is always a TM
+// test, never a PR test."
 
 // ---------------------------------------------------------------------------
 // Lifts
