@@ -6,7 +6,7 @@
 // threaded through here — they don't depend on training maxes, so the UI
 // reads them straight off the selected Template record instead.
 
-import { workingWeight } from "./calc";
+import { percentagesMatch, trainingMax, workingWeight } from "./calc";
 import type {
   ByRole,
   Cycle,
@@ -141,7 +141,8 @@ function generateSession(input: GenerateSessionInput): Week {
       throw new Error(`Missing lift data for "${liftKey}"`);
     }
 
-    const trainingMaxLb = lift.trainingMaxSeedLb + (input.cycleNumber - 1) * lift.incrementLb;
+    const incrementLb = input.template.incrementOverrides?.[liftKey] ?? lift.incrementLb;
+    const trainingMaxLb = trainingMax(lift.trainingMaxSeedLb, incrementLb, input.cycleNumber);
     const effectivePercentage = lift.tmPercentageOverride ?? input.planTmPercentage;
 
     for (const mainSet of input.mainWorkSets) {
@@ -215,14 +216,20 @@ function effectiveSupplementalSource(
   if (
     template.id === "beginner" &&
     template.tmPercentage.kind === "range" &&
-    effectivePercentage === template.tmPercentage.min
+    percentagesMatch(effectivePercentage, template.tmPercentage.min)
   ) {
     return { kind: "second-set-last" };
   }
   return declaredSource;
 }
 
-function resolveByRole<T>(field: ByRole<T>, role: ProgrammingPhaseRole): T {
+/**
+ * Exported so the UI can resolve the guidance fields (assistance,
+ * jumpsAndThrows, warmUp, conditioning) this module deliberately doesn't
+ * thread through Plan — one shared helper for every role-keyed field, per
+ * CLAUDE.md, not a private copy per consumer.
+ */
+export function resolveByRole<T>(field: ByRole<T>, role: ProgrammingPhaseRole): T {
   if (isRoleMap(field)) {
     return field[role] ?? field.default;
   }

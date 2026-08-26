@@ -131,6 +131,13 @@ export interface Template {
   supportedDayCounts: TrainingDayCount[];
   tmPercentage: TmPercentageConstraint;
 
+  /**
+   * Per-lift override of a lift's own `incrementLb`, the fallback (see
+   * docs/ARCHITECTURE.md §3). Not role-keyed — the book varies this by lift,
+   * not by Leader/Anchor. Beginner overrides squat and deadlift to +5 lb.
+   */
+  incrementOverrides?: Partial<Record<LiftKey, number>>;
+
   // Prescription — may be role-keyed via ByRole<T>.
   sessionShape: Partial<Record<TrainingDayCount, SessionShape>>;
   mainWork: ByRole<MainWorkScheme>;

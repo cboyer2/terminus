@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { estimatedMax, roundToNearestFive, trainingMax, workingWeight } from "../calc";
+import { estimatedMax, percentagesMatch, roundToNearestFive, trainingMax, workingWeight } from "../calc";
 
 describe("roundToNearestFive", () => {
   it("rounds down below the midpoint", () => {
@@ -52,19 +52,28 @@ describe("estimatedMax", () => {
 });
 
 describe("trainingMax", () => {
-  it("applies the TM percentage with no rounding needed", () => {
-    expect(trainingMax(350, 0.9)).toBe(315);
+  it("returns the seed unchanged for cycle 1", () => {
+    expect(trainingMax(300, 10, 1)).toBe(300);
   });
 
-  it("rounds the result to the nearest 5 lb", () => {
-    // 365 x 0.85 = 310.25 -> 310
-    expect(trainingMax(365, 0.85)).toBe(310);
+  it("adds one increment per elapsed cycle", () => {
+    expect(trainingMax(300, 10, 2)).toBe(310);
+    expect(trainingMax(300, 10, 3)).toBe(320);
+  });
+
+  it("uses whatever increment it's given, e.g. Beginner's +5 squat/deadlift override", () => {
+    expect(trainingMax(300, 5, 3)).toBe(310);
   });
 });
 
 describe("workingWeight", () => {
   it("applies a week's percentage with no rounding needed", () => {
     expect(workingWeight(350, 0.9)).toBe(315);
+  });
+
+  it("rounds the result to the nearest 5 lb", () => {
+    // 365 x 0.85 = 310.25 -> 310
+    expect(workingWeight(365, 0.85)).toBe(310);
   });
 
   it("rounds a tie up, matching a classic 5/3/1 week-one first set", () => {
@@ -77,5 +86,25 @@ describe("workingWeight", () => {
     // which must round up to 230, not down to 225. 70% is the book's
     // standard week-two first-set percentage, so this runs every cycle.
     expect(workingWeight(325, 0.7)).toBe(230);
+  });
+
+  it("computes a training max seed from a one-rep max, same math as any other percentage", () => {
+    // Same worked figure as estimatedMax's fixture: a 350 lb 1RM at 90%.
+    expect(workingWeight(350, 0.9)).toBe(315);
+  });
+});
+
+describe("percentagesMatch", () => {
+  it("matches identical percentages", () => {
+    expect(percentagesMatch(0.85, 0.85)).toBe(true);
+  });
+
+  it("tolerates floating-point noise from a round-tripped numeric column", () => {
+    expect(percentagesMatch(0.85, 0.8500000000000001)).toBe(true);
+  });
+
+  it("rejects a genuinely different percentage", () => {
+    expect(percentagesMatch(0.85, 0.9)).toBe(false);
+    expect(percentagesMatch(0.85, 0.86)).toBe(false);
   });
 });

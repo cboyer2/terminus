@@ -62,12 +62,18 @@ const beginnerProgrammingModel: ProgrammingModel = {
   phases: [{ role: "standalone", cycles: 1 }],
 };
 
+// Lift-level fallback defaults from docs/PRD.md §1.9: +10 squat/deadlift,
+// +5 bench/press. Deliberately different from Beginner's +5 squat/deadlift
+// override, so a cycle-2+ test can tell whether cycles.ts actually applied
+// the template's incrementOverrides or silently fell back to these instead.
+const FALLBACK_INCREMENTS = { squat: 10, bench: 5, deadlift: 10, press: 5 } as const;
+
 const lifts: Lift[] = (Object.keys(SEEDS) as (keyof typeof SEEDS)[]).map((liftKey) => ({
   liftKey,
   role: "main",
   trainingMaxSeedLb: SEEDS[liftKey],
   tmPercentageOverride: liftKey === WEAK_LIFT ? 0.85 : null,
-  incrementLb: 5,
+  incrementLb: FALLBACK_INCREMENTS[liftKey],
 }));
 
 describe("generatePlan (Beginner)", () => {
@@ -105,5 +111,47 @@ describe("generatePlan (Beginner)", () => {
       expect(week.kind).toBe("main");
       expect(week.sets).toEqual(expectedWeeks[i]);
     });
+  });
+});
+
+describe("generatePlan (Beginner, cycle 2 — incrementOverrides)", () => {
+  // A single standalone phase with 2 cycles is a legal input even though
+  // the app never actually offers Beginner this way (it's always 1 cycle,
+  // repeated by regenerating) — it's the only way to exercise cycle-2+ TM
+  // progression without needing the not-yet-implemented multi-phase path.
+  const plan = generatePlan({
+    lifts,
+    programmingModel: { id: "beginner", phases: [{ role: "standalone", cycles: 2 }] },
+    tmPercentage: 0.9,
+    templatesByRole: { standalone: beginnerTemplate },
+    trainingDays: 3,
+  });
+
+  it("applies the template's +5 squat/deadlift override, not each lift's own +10 fallback", () => {
+    const cycle2FirstSession = plan.cycles[1].weeks[0];
+    expect(cycle2FirstSession.kind).toBe("main");
+
+    const squatMains = cycle2FirstSession.sets.filter((s) => s.liftKey === "squat" && s.role === "main");
+    // Seed 300 + 1 x override increment (5) = 305 TM. The buggy +10 fallback
+    // would give a 310 TM instead, producing [215, 250, 280] here.
+    expect(squatMains.map((s) => s.weightLb)).toEqual([215, 245, 275]);
+
+    const deadliftMainWeights = plan.cycles[1].weeks[1].sets
+      .filter((s) => s.liftKey === "deadlift" && s.role === "main")
+      .map((s) => s.weightLb);
+    // Seed 350 + 1 x override increment (5) = 355 TM. The buggy +10 fallback
+    // would give a 360 TM instead, producing [250, 290, 325] here.
+    expect(deadliftMainWeights).toEqual([250, 285, 320]);
+  });
+
+  it("keeps bench/press on their unaffected fallback increment (override coincides with default)", () => {
+    const cycle2FirstSession = plan.cycles[1].weeks[0];
+    expect(cycle2FirstSession.kind).toBe("main");
+    const benchMains = cycle2FirstSession.sets
+      .filter((s) => s.liftKey === "bench" && s.role === "main")
+      .map((s) => s.weightLb);
+    // Seed 200 + 1 x 5 (bench has no override, and its fallback is already
+    // +5) = 205 TM.
+    expect(benchMains).toEqual([145, 165, 185]);
   });
 });

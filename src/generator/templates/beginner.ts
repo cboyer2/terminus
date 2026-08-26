@@ -12,6 +12,10 @@ export const beginnerTemplate: Template = {
   supportedDayCounts: [3],
   tmPercentage: { kind: "range", min: 0.85, max: 0.9 },
 
+  // The book halves the default +10 lb increment for squat and deadlift
+  // specifically; bench and press keep the lift-level default.
+  incrementOverrides: { squat: 5, deadlift: 5 },
+
   sessionShape: {
     3: {
       workouts: [

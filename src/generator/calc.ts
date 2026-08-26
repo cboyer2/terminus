@@ -32,19 +32,35 @@ export function estimatedMax(weightLb: number, reps: number): number {
 }
 
 /**
- * Derives a training max from a one-rep max and a TM percentage, rounded to
- * the nearest 5 lb. This is what produces a lift's `trainingMaxSeed` at
- * setup; `tmPercentage` is 0-1, never 85.
+ * Derives a displayable, rounded weight: a percentage of a base weight.
+ * Used for main work, supplemental work, and — since a training max seed is
+ * itself just a rounded percentage of a one-rep max — for computing that
+ * seed at setup too.
  */
-export function trainingMax(oneRepMaxLb: number, tmPercentage: number): number {
-  return roundToNearestFive(oneRepMaxLb * tmPercentage);
+export function workingWeight(baseLb: number, percentage: number): number {
+  return roundToNearestFive(baseLb * percentage);
 }
 
 /**
- * Derives a displayable, rounded weight for a set: a percentage of a
- * training max. Used for main work, supplemental, and anything else
- * expressed as a percentage of a training max.
+ * Derives a cycle's training max from a lift's stored seed: the seed plus
+ * one increment per cycle already elapsed. `cycleNumber` is 1-based, so
+ * cycle 1 returns the seed unchanged. No rounding needed — a seed and an
+ * increment are already 5 lb-aligned, and this is plain addition, not a
+ * percentage multiplication that could introduce floating-point noise.
  */
-export function workingWeight(trainingMaxLb: number, percentage: number): number {
-  return roundToNearestFive(trainingMaxLb * percentage);
+export function trainingMax(seedLb: number, incrementLb: number, cycleNumber: number): number {
+  return seedLb + (cycleNumber - 1) * incrementLb;
+}
+
+/**
+ * Compares two 0-1 TM percentages with tolerance for floating-point noise —
+ * both `program.tm_percentage` and `lifts.tm_percentage_override` are
+ * unconstrained Postgres `numeric` columns, so a round-tripped value can
+ * differ from a literal like 0.85 by less than a millionth without being a
+ * genuinely different percentage. The epsilon is far tighter than any real
+ * percentage choice (a tenth of a point is 100,000x larger) and far looser
+ * than IEEE-754 noise (~1e-16).
+ */
+export function percentagesMatch(a: number, b: number): boolean {
+  return Math.abs(a - b) < 1e-6;
 }
