@@ -17,6 +17,7 @@ import type {
   Plan,
   ProgrammingModel,
   ProgrammingPhaseRole,
+  Range,
   SupplementalPrescription,
   SupplementalSource,
   Template,
@@ -270,8 +271,14 @@ function effectiveSupplementalSource(
  * by proximity rather than exact equality to the range minimum, so an
  * override that isn't a bit-identical 0.85 (0.87, say, entered through a
  * future non-binary percentage picker) still lands on the correct side.
+ *
+ * A percentage landing exactly on the midpoint (0.875 for Beginner) is
+ * deliberately classified "strong" — the book's assignment is genuinely
+ * binary and never produces this tie, so there's no book guidance either
+ * way; defaulting to the template's own declared source rather than the
+ * override is the more conservative of two equally arbitrary choices.
  */
-function isWeakLiftPercentage(percentage: number, range: { min: number; max: number }): boolean {
+function isWeakLiftPercentage(percentage: number, range: Range): boolean {
   const midpoint = (range.min + range.max) / 2;
   return percentage < midpoint;
 }

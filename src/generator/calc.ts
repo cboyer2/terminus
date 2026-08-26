@@ -44,13 +44,19 @@ export function workingWeight(baseLb: number, percentage: number): number {
 /**
  * Derives a cycle's training max from a lift's stored seed: the seed plus
  * one increment per cycle already elapsed. `cycleNumber` is 1-based, so
- * cycle 1 returns the seed unchanged. A seed and an increment should
- * already be 5 lb-aligned by the time they're stored, but `lifts.*` are
- * unconstrained Postgres `numeric` columns — this is a database read, a
- * system boundary, not internal code this function can just trust — so it
- * rounds defensively rather than propagating a misaligned value forward
- * into every displayed weight for the rest of the cycle.
+ * cycle 1 returns the seed unchanged.
+ *
+ * Deliberately not rounded — docs/ARCHITECTURE.md §7 names exactly two
+ * rounding points, estimated max and working weight, and this isn't either
+ * of them. Rounding here too would double-round: for a seed that somehow
+ * isn't 5 lb-aligned (lifts.training_max_seed_lb has no CHECK constraint
+ * enforcing it), trainingMax(203, 0, 1) rounded first gives 205, and
+ * workingWeight(205, 0.65) then gives 135 - a full 5 lb off from just
+ * rounding the true product once (workingWeight(203, 0.65) = 130). Passing
+ * the raw sum through and letting workingWeight round once, at the one
+ * point a displayable number actually gets produced, is what keeps that a
+ * single rounding pass instead of two compounding ones.
  */
 export function trainingMax(seedLb: number, incrementLb: number, cycleNumber: number): number {
-  return roundToNearestFive(seedLb + (cycleNumber - 1) * incrementLb);
+  return seedLb + (cycleNumber - 1) * incrementLb;
 }

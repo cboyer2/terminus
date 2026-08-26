@@ -65,12 +65,12 @@ describe("trainingMax", () => {
     expect(trainingMax(300, 5, 3)).toBe(310);
   });
 
-  it("rounds defensively if a stored seed or increment weren't 5 lb-aligned", () => {
-    // lifts.training_max_seed_lb / increment_lb are unconstrained numeric
-    // columns - nothing in the schema stops a misaligned value from
-    // reaching here. 301 + 1x7 = 308, which must land on 310, not pass
-    // 308 straight through.
-    expect(trainingMax(301, 7, 2)).toBe(310);
+  it("does not round, even for a misaligned seed - that's workingWeight's job, once", () => {
+    // Rounding here too would double-round: trainingMax(203, 0, 1) rounded
+    // first would give 205, then workingWeight(205, 0.65) gives 135 - a
+    // full 5 lb off from rounding the true product once, which is 130.
+    expect(trainingMax(203, 0, 1)).toBe(203);
+    expect(workingWeight(trainingMax(203, 0, 1), 0.65)).toBe(130);
   });
 });
 
