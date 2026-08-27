@@ -50,7 +50,7 @@ export default function LoginScreen() {
         />
         <AppleSignInButton />
         <Link href="/signup" replace>
-          <ThemedText>Don't have an account? Sign up</ThemedText>
+          <ThemedText>Don&apos;t have an account? Sign up</ThemedText>
         </Link>
       </ScrollView>
     </>
