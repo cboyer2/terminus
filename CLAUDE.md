@@ -33,14 +33,16 @@ Design target: minimal, calm. One screen answers "what am I doing, at what weigh
 Stored state is small and input-only:
 
 - **Lifts** — each with a `training_max_seed_lb`, an increment, a stable
-  `lift_key`, and a main/supplemental role. **No percentage on the lift.**
+  `lift_key`, a main/supplemental role, and a nullable
+  `tm_percentage_override`.
 - **Program** — one row: programming model, training days (2–4), leader
   template, anchor template (null for beginner), a **plan-wide** TM
   percentage, and a template-options payload.
 
 The TM percentage is plan-wide, defaulted from the Leader template, and lives
-on the program — never on the lift and never per phase. The 1RM is not stored;
-it is an entry-time input, and is derivable later as `seed ÷ tm_percentage`.
+on the program. A lift may override it (`override ?? program.tmPercentage`) —
+**per-lift is permitted, per-phase is not.** The 1RM is not stored; it is an
+entry-time input, derivable later as `seed ÷ effectivePercentage(lift)`.
 
 Everything else — every cycle, week, set, and weight — is **derived**. The
 generator is a pure function of stored inputs. No plan is persisted.
@@ -84,7 +86,9 @@ No third-party APIs. Ask before adding any dependency.
 
 - The generator module imports **nothing** — no React, no Supabase, no storage. Numbers in, numbers out.
 - Templates are **composed**, not inherited. A template *has* a main-work scheme, a supplemental source, a session shape, and assistance targets. These vary independently; inheritance will not model them.
-- Any **prescription** field on a template may be role-keyed (`leader` / `anchor` / `standalone`), resolved by one shared helper. **Setup-constraint fields never are** — and `tmPercentage` in particular is plan-wide and must never vary by role.
+- **Variation or option?** A variation is something the book prints a separate table for — it gets its own template record. An option is a knob the book tells you to set — it lives in the `options` payload. If it changes a setup-constraint field (role eligibility, day counts, TM percentage, compatible anchors, cycle length), it is always a separate template.
+- Any **prescription** field on a template may be role-keyed (`leader` / `anchor` / `standalone`), resolved by one shared helper. **Setup-constraint fields never are** — and `tmPercentage` in particular must never vary by role — a per-lift override is
+  fine, a per-phase one is not.
 - Branching on template ID **is allowed while only one template exists**.
   Mark it with a comment saying it is deliberate and temporary. **The
   exception expires when the second template lands** — Original BBB is next,

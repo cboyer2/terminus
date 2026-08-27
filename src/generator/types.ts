@@ -111,7 +111,13 @@ export type TemplateId = string;
 
 export type RoleEligibility = "leader" | "anchor" | "both" | "neither";
 
-export type TmPercentage = { kind: "fixed"; value: number } | { kind: "range"; min: number; max: number };
+/**
+ * A range is a small set of discrete steps the book names (e.g. 80/85/90%),
+ * never a continuous interval — `default` is which of those steps the setup
+ * flow pre-selects, per PRD §1.4: "A fixed percentage is shown for approval;
+ * a range requires a choice."
+ */
+export type TmPercentage = { kind: "fixed"; value: number } | { kind: "range"; min: number; max: number; default: number };
 
 export interface Workout {
   /** Display label, e.g. "Workout A". */
@@ -131,27 +137,59 @@ export type SessionShape = ByRole<Workout[]>;
 export interface MainWorkSet {
   tmPercentage: number;
   reps: number;
+  /**
+   * True for a set the book marks with "+" — beat the prior rep count or
+   * estimated max, rather than stopping at `reps`. `reps` still holds the
+   * printed minimum. See docs/ARCHITECTURE.md §8 "Main work needs per-set
+   * flags" and the `original-531` / `bbb-original` (PR-set base) specs.
+   */
+  isPrSet: boolean;
 }
 
-/** Indexed by 0-based progression step (the book's "5s/3s/1s week", whatever a template calls it). */
-export type MainWorkScheme = ByRole<MainWorkSet[][]>;
+/**
+ * `bbb-original`'s three printed main-work bases (docs/templates/
+ * boring-but-big.md "Main work") — an option, not a template split, per the
+ * variation/option test: it changes no setup-constraint field.
+ */
+export type MainWorkBase = "3/5/1" | "classic" | "prSet";
+
+/**
+ * Indexed by 0-based progression step (the book's "5s/3s/1s week", whatever
+ * a template calls it). A template whose main work is chosen from named
+ * bases (rather than varying by role) supplies the option-keyed form
+ * instead — `resolveMainWorkScheme` in cycles.ts is the one resolver for
+ * both shapes. The two are told apart by their distinct keys (`byRole`
+ * fields are the plain-value/role-map union in `ByRole`; this one is
+ * `byMainWorkBase`), never by structural guessing.
+ */
+export type MainWorkScheme =
+  | ByRole<MainWorkSet[][]>
+  | { byMainWorkBase: Record<MainWorkBase, MainWorkSet[][]>; defaultMainWorkBase: MainWorkBase };
 
 export type SupplementalSourceKind = "firstSetLast" | "secondSetLast" | "percentageOfTrainingMax";
 
-export interface SupplementalPrescription {
-  sets: number;
-  reps: number;
-  source: SupplementalSourceKind;
-}
+/**
+ * FSL/SSL derive their percentage from that week's own main-work sets, so
+ * they carry no percentage of their own. "percentageOfTrainingMax" (BBB's
+ * flat supplemental scheme) has no main-work set to derive from, so it must
+ * state one — a template default, overridable per lift via
+ * `program.options` (docs/templates/boring-but-big.md "Options").
+ */
+export type SupplementalPrescription =
+  | { sets: number; reps: number; source: "firstSetLast" | "secondSetLast" }
+  | { sets: number; reps: number; source: "percentageOfTrainingMax"; percentageOfTrainingMax: number };
 
 /**
  * Beginner assigns each lift 85% or 90% individually (docs/templates/
  * beginner.md), and its supplemental source depends on which: Second Set
  * Last for a lift at the template's lower declared percentage, First Set
  * Last otherwise. A template that doesn't vary supplemental by percentage
- * just supplies one SupplementalPrescription.
+ * just supplies one SupplementalPrescription. "none" is Original 5/3/1's
+ * case — no template in that family has any supplemental work at all,
+ * rather than a prescription with zero sets standing in for "none".
  */
 export type Supplemental =
+  | "none"
   | SupplementalPrescription
   | { atLowerTmPercentage: SupplementalPrescription; atHigherTmPercentage: SupplementalPrescription };
 
@@ -220,7 +258,20 @@ export interface Program {
 export interface PlannedSet {
   tmPercentage: number;
   workingWeight: number;
-  reps: number;
+  /**
+   * A plain number for every set a template or protocol prints as one. The
+   * `{min,max}` form exists only for the 7th Week Deload's second set
+   * (70%x5, 80%x3-5, 90%x1, 100%x1) — unlike the TM test's own "3-5", which
+   * the book explains away by percentage (90%->3, 85%->5) and which
+   * resolves to a plain number, nothing ties the deload's range to
+   * anything. It reads as genuine autoregulation ("don't grind"), not a
+   * fact this app should collapse to a single number. No MainWorkSet ever
+   * needs this — it's confined to the one generated (not template-authored)
+   * set that has it.
+   */
+  reps: number | { min: number; max: number };
+  /** Carried from MainWorkSet.isPrSet; always false for a supplemental set. */
+  isPrSet: boolean;
 }
 
 export interface SessionLiftEntry {

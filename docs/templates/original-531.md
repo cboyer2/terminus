@@ -1,39 +1,68 @@
-# Template spec — Original 5/3/1
+# Template family — Original 5/3/1
 
 Source: *5/3/1 Forever*, Original 5/3/1 chapter. Paraphrased for personal use.
-This is the hand-verification reference for the `original-531` template record
-and its fixture.
+
+`family: "Original 5/3/1"`
 
 ---
 
-## Identity and constraints
+## What the family shares
 
 | Field | Value |
 |---|---|
-| `id` | `original-531` |
-| Role eligibility | **Both** — via role-keyed assistance targets, see below |
-| Supported day counts | 4 |
-| TM percentage | ⚠️ not stated in this chapter — see unresolved note |
-| Cycles | 2–3 per phase |
+| Supplemental work | **None.** No template in this family has any |
+| TM percentage | **80% · 85% · 90%, selectable, default 90%** — not stated in this chapter itself; see resolved note |
+| Cycles per phase | 2–3 |
+| Conditioning | Up to 4 hard days; prefer them on training days, off days for a recovery circuit. If pushing conditioning hard, restrict assistance volume |
 
 The book is candid that the original program doesn't naturally suit the
-Leader/Anchor structure, but works with modification — and the modification is
-assistance volume, nothing else.
+Leader/Anchor structure but works with modification — and the modification is
+assistance volume, nothing else. Main work, jumps/throws and conditioning are
+explicitly unchanged between roles.
+
+### Jumps and throws
+
+10–20 total per workout. **The high end is for one main lift per day, the low
+end for two main lifts per workout** — so this is a function of session shape,
+not a flat number. Beginner and intermediate lifters with good ability may use
+the high end regardless.
 
 ### Pairings named in the source
 
 - **5/3/1 Widowmaker (Leader) → Original 5/3/1 (Anchor)** is described as the
   closest variation to the original program.
-- Original 5/3/1 also appears on Boring But Big's list of permitted Anchors.
+- Original 5/3/1 appears on Boring But Big's list of permitted Anchors.
 
-## Session shape
+**Resolved:** the training max percentage is selectable — **80%, 85%, or
+90%**, defaulting to **90%** — per *5/3/1 Forever*'s Deload/7th Week Protocol
+chapter (p.20, stated there rather than in this chapter): "For the original
+program, we always try to have our training max set at 90% of your actual or
+estimated 1RM." The 85%/80-85% figures a few sentences later are introduced by
+contrast — "As I've added different supplemental variations and more
+volume... beginning with an 85% training max is often recommended" — and this
+family has no supplemental work at all, so 90% is the default while 80% and
+85% stay selectable for lifters who want to run it lighter. Not the 85–90% of
+"Original 5/3/1 and First Set Last" (p.168) — that remains a separate
+template. Nothing in the 10-rep or A/B sections restates a different value, so
+all three templates in this family share it.
 
-Four days, one main lift per session: squat, bench press, deadlift, press. Each
-session is warm-up/mobility, jumps/throws, main work, assistance,
-conditioning. The book notes bench/press and squat/deadlift may be swapped
-freely.
+## Templates in this family
 
-## Main work
+| ID | Distinguishing feature | Roles | Days | Cycle length |
+|---|---|---|---|---|
+| `original-531` | the canonical program | Leader and Anchor | 4 | 3 weeks |
+| `original-531-10rep` | ten reps on the first set | **Leader only** | 4 | 3 weeks |
+| `original-531-ab` | two main lifts per session | Leader and Anchor | **3** | **2 weeks** |
+
+The five "variations" in the chapter collapse to three templates, because two
+of them are role-keyed assistance rather than distinct programs — see the note
+at the end.
+
+---
+
+## `original-531` — the canonical program
+
+### Main work
 
 | Week | Sets |
 |---|---|
@@ -43,47 +72,36 @@ freely.
 
 **The final set of every week is a PR set** — beat your previous rep count at
 that weight, or beat your old estimated max via the formula. This is the
-canonical 5/3/1 table and the standard week ordering, unlike the 3/5/1
+canonical 5/3/1 table in the standard week ordering, unlike the 3/5/1
 arrangement used in the Beginner and BBB chapters.
 
-After the third week, increase the training max by 10 lb for squat and deadlift
-and 5 lb for bench press and press.
+After the third week, the training max increases by 10 lb for squat and
+deadlift, 5 lb for bench press and press.
 
-## Assistance — role-keyed
+### Session shape
 
-This is the only field that differs between Leader and Anchor use, and it is
-the reason `ByRole<T>` exists in the architecture.
+Four days, one main lift per session: squat, bench press, deadlift, press. Each
+session is warm-up/mobility, jumps/throws, main work, assistance, conditioning.
+Bench/press and squat/deadlift may be swapped freely.
 
-| Category | As Leader (first 2–3 cycles) | As Anchor (final 2–3 cycles) |
+Jumps and throws: **20** (one main lift per day).
+
+### Assistance — role-keyed
+
+| Category | As Leader | As Anchor |
 |---|---|---|
 | Push | 100 reps/workout | 50–75 reps/workout |
 | Pull | 100 reps/workout | 50–75 reps/workout |
 | Single leg / core | 100 reps/workout | 50–75 reps/workout |
 
-The book states explicitly that main work, jumps/throws and conditioning are
-unchanged between the two — only assistance volume moves.
+### Options
 
-## Jumps and throws
+None beyond the plan-level settings. The chapter offers no knobs for this
+template.
 
-10–20 total per workout. **The high end is for one main lift per day; the low
-end for two main lifts per workout.** Since this template is one lift per day,
-use 20. Beginner and intermediate lifters with good ability may use the high
-end regardless.
+---
 
-Note this makes jump volume a function of session shape, not a flat number.
-
-## Conditioning
-
-Up to four hard days, though the book warns this catches up with the
-unprepared. Preference is harder conditioning on training days, with off days
-used for a recovery circuit. If conditioning is being pushed hard, assistance
-volume should be restricted.
-
-## Variations — separate templates
-
-Per the decision that each variation is its own record:
-
-### Original 5/3/1, 10-rep first set
+## `original-531-10rep` — ten reps on the first set
 
 | Week | Sets |
 |---|---|
@@ -92,34 +110,60 @@ Per the decision that each variation is its own record:
 | 3 | 75% × 10, 85% × 5, 95% × 1+ |
 
 The final set is pushed hard with a goal of at least ten reps. Run for two to
-three cycles, then return to normal Original 5/3/1 — which makes this a
-**Leader with Original 5/3/1 as its Anchor**. Assistance is 50–100 reps per
-category per workout, unchanged across all five cycles, so this variation is
-*not* role-keyed.
+three cycles, then return to the canonical program — which makes this a
+**Leader with `original-531` as its Anchor**.
 
-### Original 5/3/1, A/B three-day
+Assistance is 50–100 reps per category per workout, unchanged across all
+cycles, so this template is **not** role-keyed. Session shape and jumps match
+the canonical template.
+
+### Options
+
+None.
+
+---
+
+## `original-531-ab` — A/B, three days
 
 Three days a week, two main lifts per session. "A" is squat and bench press;
 "B" is deadlift and press.
 
-| | Monday | Wednesday | Friday |
+| | Session 1 | Session 2 | Session 3 |
 |---|---|---|---|
 | Week 1 | Squat 3×5, Bench 3×5 | Deadlift 3×5, Press 3×5 | Squat 3×3, Bench 3×3 |
 | Week 2 | Deadlift 3×3, Press 3×3 | Squat 5/3/1, Bench 5/3/1 | Deadlift 5/3/1, Press 5/3/1 |
 
-Then change training maxes and repeat, for two to three cycles. Assistance is
-50–100 reps per category throughout.
+Then change training maxes and repeat, for two to three cycles. The last set is
+still pushed for a PR or a goal rep count.
 
-⚠️ **A cycle here is two calendar weeks, not three.** Each lift is trained three
-times per cycle — a fives session, a threes session, and a 5/3/1 session —
-across six sessions in two weeks. Any assumption that a cycle equals three
-weeks breaks on this variation.
+⚠️ **A cycle here is two calendar weeks, not three.** Six sessions, each lift
+trained three times — a fives session, a threes session and a 5/3/1 session.
+Any assumption that a cycle is three weeks breaks on this template. Same
+structure as the Beginner template.
 
-Jump volume should be the low end (10) here, since there are two main lifts per
-session.
+Jumps and throws: **10** (two main lifts per session).
 
-## Unresolved
+The book describes this as more intensive than the standard program and not for
+everyone.
 
-**Training max percentage.** This chapter does not state one. The adjacent
-Original 5/3/1 and First Set Last template specifies 85–90% TM, but that is a
-different template. Confirm from the main 5/3/1 chapter before encoding.
+### Options
+
+| Option | Values | Notes |
+|---|---|---|
+| Assistance profile | flat · role-keyed | Flat is 50–100 reps per category throughout. Role-keyed mirrors the canonical template: higher for the first two to three cycles, substantially lower afterwards — the book warns the daily workload gets heavy here |
+
+---
+
+## Why five variations became three
+
+The chapter presents five options. Two of them are not templates:
+
+- **The assistance-volume variation** changes only rep targets between early
+  and late cycles. That is `ByRole<T>` on `original-531`, not a separate
+  program — no new table, no constraint change.
+- **The A/B-with-varying-assistance variation** is the same thing applied to
+  `original-531-ab`, and is captured as that template's assistance-profile
+  option.
+
+This is the clearest illustration in the library of the difference between a
+variation, an option, and a role-keyed field.

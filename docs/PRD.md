@@ -28,7 +28,7 @@ A personal planning tool that turns a set of maxes and a chosen 5/3/1 template i
 6. **Enter maxes.** Actual or estimated 1RM for the four main lifts plus whatever supplemental lifts the chosen templates require — which is why this comes after template selection, not before. Built-in estimator: `weight × reps × 0.0333 + weight`.
 7. **Review and approve.** Training max seeds are computed from the entered 1RMs and the chosen percentage, and the full plan is generated. The 1RMs themselves are not kept — the seed is the stored value from here on.
 
-**The generated plan** runs Leader cycles → 7th Week Protocol deload → Anchor cycles → 7th Week Protocol TM test. The closing week is always a TM test, never a PR test, for every programming model including Beginner. The Beginner model's single cycle has no Leader/Anchor boundary and therefore no mid-plan deload — it goes straight from its one cycle to the closing TM test.
+**The generated plan** runs Leader cycles → 7th Week Protocol deload → Anchor cycles → 7th Week Protocol TM test. The closing week is always a TM test, never a PR test. The Beginner model's single cycle has no Leader/Anchor boundary and therefore no mid-plan deload.
 
 **Then, day to day:**
 
@@ -39,7 +39,6 @@ A personal planning tool that turns a set of maxes and a chosen 5/3/1 template i
    - **Stalled lift** — subtract three increments from that lift's seed. A stall is per-lift and can occur at any point in a block, not only at its end. No input required; this is arithmetic, not history.
 
    Seeds are the only stored maxes; every cycle's training max is derived from them. Adjusting one lift's seed changes that lift's numbers and nothing else — the other lifts re-derive to exactly what they showed before, so there is nothing to restart. Because no position is tracked, a lift whose seed drops three increments simply shows lighter weights wherever you happen to be in the block. Updates are instant and in place.
-
 10. **Browse the template library.** Templates with their Leader/Anchor eligibility, supported day counts, intended TM percentage or range, and assistance/conditioning guidance.
 
 **Changing your mind later** uses the same screens as setup, reachable individually. Swapping just the Anchor template does not mean walking the whole flow again.
@@ -64,7 +63,7 @@ A personal planning tool that turns a set of maxes and a chosen 5/3/1 template i
 
 **Supporting signals:**
 
-- A new multi-cycle plan is generated end-to-end in under 3 minutes.
+- A new plan is generated end-to-end in under 3 minutes.
 - A change made on the laptop is visible on the phone, with no export, re-entry, or thought given to it.
 - Progressing training maxes is one tap, updates every affected weight in the plan instantly, and never requires re-entering maxes.
 - Every displayed weight matches a hand-check against the book — a wrong number is a hard failure.

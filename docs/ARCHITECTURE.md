@@ -67,6 +67,61 @@ that true:
   Leader's compatible-anchor list, templates supporting the chosen day count,
   and Anchor role eligibility. Leader is always chosen first.
 
+### Variation or option?
+
+Templates in the book come in families with many named variations, and the
+line between "a different template" and "a setting on this template" needs a
+rule, or the library becomes inconsistent.
+
+**The test: a variation is something the book prints a separate table for; an
+option is a knob the book tells you to set.**
+
+- Original BBB, Forever BBB, Slightly Less BBB, Original 5/3/1 10-rep,
+  Original 5/3/1 A/B — each has its own printed table. **Separate templates.**
+- BBB's 40–60% supplemental percentage, supplemental on the same or opposite
+  lift, three or four training days — each is a choice the text asks you to
+  make. **Options**, carried in the `options` payload.
+- Original 5/3/1's assistance-volume variation — no new table, only different
+  rep targets for Leader versus Anchor use. **Neither**: it is a role-keyed
+  field on one template.
+
+The underlying reason is that variations change what the pickers filter on. The
+10-rep variation is Leader-only; the A/B variation is three days, two lifts per
+session, and a two-week cycle. As options inside one record, `supportedDayCounts`
+would become `[3, 4]` and role eligibility "both", with only certain
+combinations legal — cross-field validation bolted onto a data model. As
+separate records the filters simply work.
+
+**Formally: if a variation changes any setup-constraint field — role
+eligibility, supported day counts, TM percentage, compatible anchors, cycle
+length, or session shape — it must be its own template. If it changes only
+prescription fields, it may be an option.**
+
+The printed-table test is the quick version and usually agrees. Where they
+disagree, **the constraint test wins**: Forever BBB prints two percentage
+tables but they differ in no constraint, so they are one template with an
+intensity option.
+
+Cycle length and session shape count as constraints even though the pickers
+don't filter on them, because both are structural — they change what a session
+or a cycle *is*, not merely what it contains.
+
+**Day count alone never splits a template.** What matters is whether a
+different day count changes the shape of a session. Original BBB runs one main
+lift per session at both three and four days, so it is one template declaring
+`supportedDayCounts: [3, 4]`. Original 5/3/1's A/B variation puts two main
+lifts in a session and runs a two-week cycle, so it is a separate template. The
+test: does the day count change what a session *contains*, or only *when*
+sessions happen? Terminus tracks no dates, so "when" is nearly invisible to it.
+
+Training days is also **not** an option in the `options` payload — it is a
+plan-level setting chosen before templates are picked, and templates declare
+compatibility through `supportedDayCounts`.
+
+Templates also carry a **`family`** label — "Boring But Big", "Original 5/3/1"
+— used only for grouping in the picker, so a library of forty records doesn't
+present as forty flat entries.
+
 ### Role-keyed fields
 
 **Any prescription field may hold either a plain value or a map keyed by
@@ -189,6 +244,13 @@ type Week =
 
 The payoff: the compiler forces every renderer to handle every week kind, so
 a new week type can't silently render as blank.
+
+**7th week sessions do not use the template's session shape.** They have their
+own layout keyed by training days alone — at three days, deadlift and press
+share the final session even under a one-lift-per-day template. They also carry
+no supplemental work and reduced assistance. A 7th week is therefore not "a
+normal week at different percentages"; it is a different structure that happens
+to use the same lifts. Full details in `docs/plan-structure.md`.
 
 ## 3. Data model (Postgres via Supabase)
 

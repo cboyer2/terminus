@@ -1,8 +1,14 @@
-# Template spec — Beginner Prep School
+# Template family — Beginner
 
 Source: *5/3/1 Forever*, Beginner Prep School chapter. Paraphrased for personal
-use. This is the hand-verification reference for the `beginner` template record
-and its fixture.
+use.
+
+`family: "Beginner"`
+
+**One template: `beginner`.** Nothing in the chapter prints a second percentage
+table, and nothing varies a setup-constraint field — day count, session shape,
+role eligibility and cycle length are fixed throughout. Everything the chapter
+offers as an alternative is an option on this one record.
 
 ---
 
@@ -124,13 +130,32 @@ using fractional plates.
 All five remedies begin identically — back up three cycles. What differs is the
 programming on the way back up:
 
-1. Repeat as-is
-2. Push the last set for a PR or a goal set, if technique is sound
-3. Increase supplemental volume to 7–10 × 5 at FSL
-4. Switch to 5×5/3/1
-5. Switch to SSL
+| # | Remedy | How it's expressed |
+|---|---|---|
+| 1 | Repeat as-is | default; nothing to change |
+| 2 | Push the last set for a PR or goal, if technique is sound | **option** — PR-set flag on main work |
+| 3 | Increase supplemental volume to 7–10 × 5 at FSL | **option** — supplemental set count |
+| 4 | Switch to 5×5/3/1 | a **different template**, not yet written |
+| 5 | Switch to SSL | **option** — supplemental source, already used by this template for the weaker lifts |
 
-Only option 1 is implementable while this is the only template.
+Only remedy 4 is blocked. Remedies 3 and 5 are expressible today; remedy 2
+needs the per-set flag that main work doesn't yet carry.
+
+## Options
+
+| Option | Values | Default |
+|---|---|---|
+| Supplemental source, **per lift** | First Set Last · Second Set Last | derived from the lift's TM percentage — FSL at 90%, SSL at 85% |
+| Supplemental set count | 5 × 5 · 7–10 × 5 | 5 × 5 |
+| PR / goal set on the final main set | off · on | off |
+| Squat and deadlift increment | 5 lb · 10 lb | 5 lb (the chapter's override) |
+
+The supplemental source default is *derived* rather than fixed — the book ties
+Second Set Last to the lifts running an 85% training max. Defaulting from the
+percentage and letting it be overridden keeps that link without hard-coding it.
+
+"Repeat a cycle unchanged," the chapter's other progression alternative, needs
+no option: it is simply not adjusting the seed.
 
 ## Goals (reference only, not modelled)
 
