@@ -75,7 +75,7 @@ describe("bbb-original — main work base option", () => {
         expect(session.cycleNumber).toBe(1);
         expect(session.lifts).toHaveLength(1);
         expect(session.lifts[0].liftKey).toBe(WORKOUT_ORDER[i]);
-        expect(session.lifts[0].week).toEqual({ kind: "main", progressionStep: step });
+        expect(session.lifts[0].step).toEqual({ kind: "main", index: step });
       }
     }
   });

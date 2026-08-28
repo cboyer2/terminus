@@ -50,7 +50,7 @@ describe("generatePlan — bbb-original (Leader) -> original-531 (Anchor), 2+1",
   });
 
   it("numbers sessions sequentially and tags each block's cycle number correctly", () => {
-    const kinds = plan.sessions.map((s) => s.lifts[0].week.kind);
+    const kinds = plan.sessions.map((s) => s.lifts[0].step.kind);
     const expectedKinds = [
       ...Array(24).fill("main"), // 2 leader cycles
       ...Array(4).fill("deload"),

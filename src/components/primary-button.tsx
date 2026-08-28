@@ -1,38 +1,37 @@
-import { ThemedText } from "@/components/themed-text";
 import { colors, spacing } from "@/theme";
-import { StyleSheet, TouchableOpacity } from "react-native";
+import { Button, Host, type UniversalStyle } from "@expo/ui";
+import { StyleSheet } from "react-native";
 
-export function PrimaryButton(props: {
-  title: string;
-  onPress: () => void;
-  loading?: boolean;
-}) {
+// UniversalStyle (the Button's own `style` prop) doesn't support text color,
+// size, or weight — the native filled-button text convention applies
+// instead, which trades exact control for a native look-and-feel.
+const BUTTON_STYLE: UniversalStyle = {
+  backgroundColor: colors.systemBlue,
+  borderRadius: 4,
+  padding: spacing.md,
+};
+
+const BUTTON_DISABLED_STYLE: UniversalStyle = {
+  ...BUTTON_STYLE,
+  opacity: 0.5,
+};
+
+export function PrimaryButton(props: { title: string; onPress: () => void; loading?: boolean }) {
   return (
-    <TouchableOpacity
-      style={[styles.button, props.loading && styles.buttonDisabled]}
-      onPress={props.onPress}
-      disabled={props.loading}
-    >
-      <ThemedText style={styles.buttonText}>{props.title}</ThemedText>
-    </TouchableOpacity>
+    <Host style={styles.host} matchContents={{ vertical: true }}>
+      <Button
+        variant="filled"
+        label={props.title}
+        onPress={props.onPress}
+        disabled={props.loading}
+        style={props.loading ? BUTTON_DISABLED_STYLE : BUTTON_STYLE}
+      />
+    </Host>
   );
 }
 
 const styles = StyleSheet.create({
-  button: {
-    backgroundColor: colors.systemBlue,
-    borderRadius: 4,
+  host: {
     alignSelf: "stretch",
-    borderCurve: "continuous",
-    padding: spacing.md,
-    alignItems: "center",
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  buttonText: {
-    color: colors.onTint,
-    fontSize: 16,
-    fontWeight: "600",
   },
 });

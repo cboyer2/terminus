@@ -1,5 +1,5 @@
 import { supabase } from "@/data/supabase";
-import { Button } from "react-native";
+import { Button, Host } from "@expo/ui";
 
 async function onSignOutButtonPress() {
   const { error } = await supabase.auth.signOut();
@@ -10,5 +10,9 @@ async function onSignOutButtonPress() {
 }
 
 export default function SignOutButton() {
-  return <Button title="Sign out" onPress={onSignOutButtonPress} />;
+  return (
+    <Host matchContents={{ vertical: true }}>
+      <Button label="Sign out" onPress={onSignOutButtonPress} />
+    </Host>
+  );
 }

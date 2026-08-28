@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { estimatedMax, roundToNearestFive, trainingMax, workingWeight } from "../calc";
+import { estimatedMax, rescaleTrainingMaxSeed, roundToNearestFive, trainingMax, trainingMaxSeedFromOneRepMax, workingWeight } from "../calc";
 
 describe("roundToNearestFive", () => {
   it("rounds down when closer to the lower multiple of 5", () => {
@@ -60,5 +60,33 @@ describe("workingWeight", () => {
   it("rounds a tie up, per the shared rounding rule", () => {
     // 350 x 0.65 = 227.5, an exact tie -> rounds to 230, not 225.
     expect(workingWeight(350, 0.65)).toBe(230);
+  });
+});
+
+describe("trainingMaxSeedFromOneRepMax", () => {
+  it("applies the TM percentage to an entered 1RM, rounded to the nearest 5 lb", () => {
+    expect(trainingMaxSeedFromOneRepMax(405, 0.9)).toBe(365);
+    expect(trainingMaxSeedFromOneRepMax(275, 0.85)).toBe(235);
+  });
+
+  it("rounds a tie up, per the shared rounding rule", () => {
+    // 350 x 0.65 = 227.5, an exact tie -> rounds to 230, not 225.
+    expect(trainingMaxSeedFromOneRepMax(350, 0.65)).toBe(230);
+  });
+});
+
+describe("rescaleTrainingMaxSeed", () => {
+  it("scales the seed by the ratio of new to old percentage", () => {
+    // 340 / 0.85 = 400 (the implied 1RM), x 0.9 = 360 exactly.
+    expect(rescaleTrainingMaxSeed(340, 0.85, 0.9)).toBe(360);
+  });
+
+  it("rounds a non-exact result to the nearest 5 lb", () => {
+    // 400 x (0.85 / 0.9) = 377.77... -> rounds to 380.
+    expect(rescaleTrainingMaxSeed(400, 0.9, 0.85)).toBe(380);
+  });
+
+  it("leaves the seed unchanged when the percentage doesn't change", () => {
+    expect(rescaleTrainingMaxSeed(405, 0.9, 0.9)).toBe(405);
   });
 });

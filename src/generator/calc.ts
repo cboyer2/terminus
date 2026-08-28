@@ -43,3 +43,25 @@ export function trainingMax(
 export function workingWeight(trainingMaxLb: number, tmPercentage: number): number {
   return roundToNearestFive(trainingMaxLb * tmPercentage);
 }
+
+/**
+ * Derive a training max seed from an entered one-rep max (actual or
+ * estimated) and the effective TM percentage for that lift, rounded to the
+ * nearest 5 lb. The seed, not the 1RM, is what's stored — see
+ * docs/ARCHITECTURE.md §3: "The 1RM is not stored."
+ */
+export function trainingMaxSeedFromOneRepMax(oneRepMaxLb: number, tmPercentage: number): number {
+  return roundToNearestFive(oneRepMaxLb * tmPercentage);
+}
+
+/**
+ * Rescale a stored seed when the plan-wide TM percentage changes (e.g. a
+ * new Leader template with a different declared percentage), rounded to
+ * the nearest 5 lb. There's no stored 1RM to recompute from, so this
+ * preserves whatever progression the seed has accumulated while honouring
+ * the new percentage — see docs/ARCHITECTURE.md §3 "Changing the
+ * percentage": `newSeed = oldSeed × (newPercentage / oldPercentage)`.
+ */
+export function rescaleTrainingMaxSeed(oldSeedLb: number, oldTmPercentage: number, newTmPercentage: number): number {
+  return roundToNearestFive(oldSeedLb * (newTmPercentage / oldTmPercentage));
+}

@@ -7,12 +7,20 @@ import { supabase } from "./supabase";
 
 const PROGRAM_COLUMNS = "programming_model, training_days, leader_template_id, anchor_template_id, tm_percentage, options";
 
+/**
+ * The shape a SELECT actually returns — not the shape the columns are
+ * declared as. `training_days` is a plain `int4` and comes back as a real
+ * JSON number, but `tm_percentage` is `numeric`, which PostgREST returns as
+ * a JSON *string* to avoid float precision loss. Trusting the declared type
+ * for that field silently corrupts every calculation downstream (string +
+ * number is concatenation, not addition).
+ */
 interface ProgramRow {
   programming_model: ProgrammingModelId;
   training_days: 2 | 3 | 4;
   leader_template_id: TemplateId;
   anchor_template_id: TemplateId | null;
-  tm_percentage: number;
+  tm_percentage: string;
   options: Record<string, unknown>;
 }
 
@@ -22,12 +30,22 @@ function rowToProgram(row: ProgramRow): Program {
     trainingDays: row.training_days,
     leaderTemplateId: row.leader_template_id,
     anchorTemplateId: row.anchor_template_id,
-    tmPercentage: row.tm_percentage,
+    tmPercentage: Number(row.tm_percentage),
     options: row.options,
   };
 }
 
-function programToRow(userId: string, program: Program): ProgramRow & { user_id: string } {
+interface ProgramWriteRow {
+  user_id: string;
+  programming_model: ProgrammingModelId;
+  training_days: 2 | 3 | 4;
+  leader_template_id: TemplateId;
+  anchor_template_id: TemplateId | null;
+  tm_percentage: number;
+  options: Record<string, unknown>;
+}
+
+function programToRow(userId: string, program: Program): ProgramWriteRow {
   return {
     user_id: userId,
     programming_model: program.programmingModel,

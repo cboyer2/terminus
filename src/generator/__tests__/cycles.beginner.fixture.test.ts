@@ -126,7 +126,7 @@ describe("generatePlan — beginner template fixture", () => {
         expect(session.lifts.map((l) => l.liftKey)).toEqual(liftKeys);
 
         for (const entry of session.lifts) {
-          expect(entry.week).toEqual({ kind: "main", progressionStep: step });
+          expect(entry.step).toEqual({ kind: "main", index: step });
           expect(entry.mainWork).toEqual(expectedMainWork(entry.liftKey, step));
           expect(entry.supplemental).toEqual(expectedSupplemental(entry.liftKey, step));
         }
@@ -180,7 +180,7 @@ describe("generatePlan — beginner template fixture", () => {
     ]);
 
     for (const entry of allTmTestEntries) {
-      expect(entry.week).toEqual({ kind: "tmTest" });
+      expect(entry.step).toEqual({ kind: "tmTest" });
       expect(entry.supplemental).toEqual([]);
     }
   });

@@ -152,7 +152,7 @@ export function buildMainCycleSessions(
 
         return {
           liftKey,
-          week: { kind: "main", progressionStep: step as 0 | 1 | 2 },
+          step: { kind: "main", index: step as 0 | 1 | 2 },
           mainWork: buildPlannedSets(weekSets, tm),
           supplemental: supplementalSets,
         };
@@ -235,7 +235,7 @@ function buildSeventhWeekPlannedSets(scheme: SeventhWeekSet[], trainingMaxLb: nu
  * "Session shape — independent of the template".
  */
 function buildSeventhWeekSessions(
-  weekKind: "deload" | "tmTest",
+  stepKind: "deload" | "tmTest",
   schemeForPercentage: (percentage: number) => SeventhWeekSet[],
   lifts: Map<LiftKey, Lift>,
   program: Program,
@@ -253,7 +253,7 @@ function buildSeventhWeekSessions(
       const percentage = effectivePercentage(lift, program);
       return {
         liftKey,
-        week: { kind: weekKind },
+        step: { kind: stepKind },
         mainWork: buildSeventhWeekPlannedSets(schemeForPercentage(percentage), tm),
         supplemental: [],
       };

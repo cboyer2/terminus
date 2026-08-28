@@ -8,7 +8,33 @@ import { supabase } from "./supabase";
 
 const LIFT_COLUMNS = "lift_key, role, training_max_seed_lb, tm_percentage_override, increment_lb";
 
+/**
+ * The shape a SELECT actually returns — not the shape the columns are
+ * declared as. Postgres `numeric` comes back over PostgREST as a JSON
+ * *string*, to avoid float precision loss, regardless of what the column
+ * type suggests. Trusting the declared type here silently corrupts every
+ * calculation downstream (string + number is concatenation, not addition).
+ */
 interface LiftRow {
+  lift_key: LiftKey;
+  role: LiftRole;
+  training_max_seed_lb: string;
+  tm_percentage_override: string | null;
+  increment_lb: string;
+}
+
+function rowToLift(row: LiftRow): Lift {
+  return {
+    liftKey: row.lift_key,
+    role: row.role,
+    trainingMaxSeed: Number(row.training_max_seed_lb),
+    tmPercentageOverride: row.tm_percentage_override === null ? null : Number(row.tm_percentage_override),
+    increment: Number(row.increment_lb),
+  };
+}
+
+interface LiftWriteRow {
+  user_id: string;
   lift_key: LiftKey;
   role: LiftRole;
   training_max_seed_lb: number;
@@ -16,17 +42,7 @@ interface LiftRow {
   increment_lb: number;
 }
 
-function rowToLift(row: LiftRow): Lift {
-  return {
-    liftKey: row.lift_key,
-    role: row.role,
-    trainingMaxSeed: row.training_max_seed_lb,
-    tmPercentageOverride: row.tm_percentage_override,
-    increment: row.increment_lb,
-  };
-}
-
-function liftToRow(userId: string, lift: Lift): LiftRow & { user_id: string } {
+function liftToRow(userId: string, lift: Lift): LiftWriteRow {
   return {
     user_id: userId,
     lift_key: lift.liftKey,

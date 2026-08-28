@@ -11,13 +11,13 @@
 // and a non-Beginner programming model are built. That churn is planned,
 // not a bug in this first pass.
 //
-// Week's "deload" and "tmTest" kinds are both exercised by Beginner despite
-// it being single-phase: every plan, Beginner included, closes with a 7th
-// Week TM test (PRD §1), so Beginner's plan is [cycle of "main" sessions,
-// then one closing "tmTest" session] — it just never produces a mid-plan
-// "deload" (that only occurs between Leader and Anchor phases). "prTest"
-// stays unused everywhere per PRD §1: "The closing week is always a TM
-// test, never a PR test."
+// ProgressionStep's "deload" and "tmTest" kinds are both exercised by
+// Beginner despite it being single-phase: every plan, Beginner included,
+// closes with a 7th Week TM test (PRD §1), so Beginner's plan is [cycle of
+// "main" sessions, then one closing "tmTest" session] — it just never
+// produces a mid-plan "deload" (that only occurs between Leader and Anchor
+// phases). "prTest" stays unused everywhere per PRD §1: "The closing week
+// is always a TM test, never a PR test."
 
 // ---------------------------------------------------------------------------
 // Lifts
@@ -41,6 +41,18 @@ export interface Lift {
   tmPercentageOverride: number | null;
   increment: number;
 }
+
+/**
+ * The lift-level default increment (PRD §1.9) — a template may override this
+ * (e.g. Beginner drops squat/deadlift to 5 lb), but that's seed-progression
+ * territory, not yet built. This is the fallback every new lift starts from.
+ */
+export const DEFAULT_INCREMENT_LB: Record<LiftKey, number> = {
+  squat: 10,
+  deadlift: 10,
+  bench: 5,
+  press: 5,
+};
 
 // ---------------------------------------------------------------------------
 // Role-keyed prescription fields
@@ -276,7 +288,7 @@ export interface PlannedSet {
 
 export interface SessionLiftEntry {
   liftKey: LiftKey;
-  week: Week;
+  step: ProgressionStep;
   mainWork: PlannedSet[];
   supplemental: PlannedSet[];
 }
@@ -292,9 +304,13 @@ export interface Session {
  * A discriminated union, not one type with optional fields, so a renderer
  * that forgets a kind fails to compile instead of rendering blank. See
  * docs/ARCHITECTURE.md "Weeks are not all the same shape".
+ *
+ * Named ProgressionStep, not Week, because the UI also has an actual
+ * calendar week (`program.trainingDays` consecutive sessions) and the two
+ * are not the same thing — see the module comment in app/(tabs)/index.tsx.
  */
-export type Week =
-  | { kind: "main"; progressionStep: 0 | 1 | 2 }
+export type ProgressionStep =
+  | { kind: "main"; index: 0 | 1 | 2 }
   | { kind: "deload" }
   | { kind: "tmTest" }
   | { kind: "prTest" };
