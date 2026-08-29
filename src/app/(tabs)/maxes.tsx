@@ -7,7 +7,6 @@
 // (Beginner's 90%/85%-per-lift case) — an existing override is preserved on
 // save, but there's no UI yet to set one fresh.
 
-import { PrimaryButton } from "@/components/primary-button";
 import { TextField } from "@/components/text-field";
 import { ThemedText } from "@/components/themed-text";
 import { estimatedMax, trainingMaxSeedFromOneRepMax } from "@/generator/calc";
@@ -19,7 +18,7 @@ import { colors, spacing } from "@/theme";
 import { Link } from "expo-router";
 import type { ReactNode } from "react";
 import { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-screens/experimental";
 
 const LIFT_ORDER: LiftKey[] = ["squat", "bench", "deadlift", "press"];
@@ -30,6 +29,33 @@ const LIFT_LABELS: Record<LiftKey, string> = {
   deadlift: "Deadlift",
   press: "Press",
 };
+
+/**
+ * Plain React Native, not @expo/ui's PrimaryButton — reverted after four
+ * failed fix attempts (a content-container padding nudge, remounting the
+ * button's Host via `key`, a trailing scroll-content spacer) at a bug
+ * confirmed positional via a temporary reorder test: whichever card is last
+ * in this repeated list gets its `Host`-wrapped, `matchContents`-sized
+ * button rendered too tight against its own fields on first layout, and a
+ * real relayout (e.g. focusing any field) fixes it — even a freshly
+ * remounted Host reproduces the bug in the last position, so it isn't a
+ * stale-measurement issue localized to one instance. Same call already made
+ * for the Plan tab's set/rep rows: a working plain-RN button beats a broken
+ * "correctly native" one in this specific repeated-list context. Not a
+ * blanket revert of PrimaryButton itself — login/signup's single, non-listed
+ * buttons aren't known to have this problem.
+ */
+function SaveButton({ title, onPress, disabled }: { title: string; onPress: () => void; disabled?: boolean }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={({ pressed }) => [styles.saveButton, disabled && styles.saveButtonDisabled, pressed && !disabled && styles.saveButtonPressed]}
+    >
+      <ThemedText style={styles.saveButtonLabel}>{title}</ThemedText>
+    </Pressable>
+  );
+}
 
 function LiftRow({
   liftKey,
@@ -99,7 +125,7 @@ function LiftRow({
           {oneRepMax} lb 1RM x {Math.round(percentage * 100)}% = {seed} lb training max
         </ThemedText>
       )}
-      <PrimaryButton title="Save" onPress={handleSave} loading={isSaving || seed === null} />
+      <SaveButton title="Save" onPress={handleSave} disabled={isSaving || seed === null} />
     </View>
   );
 }
@@ -207,5 +233,22 @@ const styles = StyleSheet.create({
   preview: {
     fontSize: 14,
     color: colors.secondaryLabel,
+  },
+  saveButton: {
+    backgroundColor: colors.systemBlue,
+    borderRadius: 4,
+    padding: spacing.md,
+    alignItems: "center",
+  },
+  saveButtonPressed: {
+    opacity: 0.8,
+  },
+  saveButtonDisabled: {
+    opacity: 0.5,
+  },
+  saveButtonLabel: {
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: "600",
   },
 });
