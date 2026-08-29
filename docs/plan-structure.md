@@ -148,16 +148,29 @@ Useful context for the setup flow's percentage step:
    prior to a Leader is already served by the setup flow, which derives each
    training max from an entered actual or estimated 1RM — the same information
    a test week would produce.
-2. **The 7th week uses the plan's training-days setting**, not a separate
-   choice. But note what that does *not* mean: the 7th week has its **own
-   layout table keyed by day count**, independent of the template's session
-   shape. At three days it puts deadlift and press together on the final day
-   even for a template that is otherwise one lift per day.
-3. **Two training days is allowed by the schema but currently unreachable.**
-   The 7th Week Protocol supports a 2-day layout; no template read so far does.
-   Keep the `check between 2 and 4` — the day-count picker should offer only
-   values for which at least one template exists, derived from the library
-   rather than hardcoded.
+2. **Each 7th Week Protocol occurrence has its own day-count choice,
+   independent of either phase's and of each other** — corrected from an
+   earlier, wrong reading of this as inherited from "the plan's
+   training-days setting," and refined once more from a first correction
+   that still shared one choice between the mid-plan deload and the closing
+   TM test. The book states the 7th Week Protocol has three day-count
+   options (two, three, or four) that can be picked regardless of what day
+   count the surrounding Leader or Anchor phase runs — and the deload and
+   the TM test are each their own occurrence, so a plan can run, say, a
+   3-day deload and a 2-day closing TM test. Stored as
+   `program.deload_training_days` and `program.tm_test_training_days`,
+   columns separate from each other and from `leader_training_days`/
+   `anchor_training_days` — see docs/ARCHITECTURE.md §3. The 7th week has
+   its **own layout table keyed by day count**, independent of the
+   template's session shape either way — at three days it puts deadlift and
+   press together on the final day even for a template that is otherwise
+   one lift per day.
+3. **Two training days is allowed by the schema and freely selectable for
+   the 7th Week Protocol**, even though no template's own session shape
+   supports 2 days yet — the 7th Week Protocol's day count isn't limited by
+   template availability the way the Leader's and Anchor's day-count pickers
+   are, since it's an independent choice with its own complete layout table
+   for 2, 3, and 4 days.
 
 ## Recorded, not gaps
 

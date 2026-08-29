@@ -26,12 +26,16 @@ export const original531Template: Template = {
   supportedDayCounts: [4],
   tmPercentage: { kind: "range", min: 0.8, max: 0.9, default: 0.9 },
 
-  sessionShape: [
-    { label: "Squat", liftKeys: ["squat"] },
-    { label: "Bench Press", liftKeys: ["bench"] },
-    { label: "Deadlift", liftKeys: ["deadlift"] },
-    { label: "Press", liftKeys: ["press"] },
-  ],
+  sessionShape: {
+    4: {
+      workouts: [
+        { label: "Squat", liftKeys: ["squat"] },
+        { label: "Bench Press", liftKeys: ["bench"] },
+        { label: "Deadlift", liftKeys: ["deadlift"] },
+        { label: "Press", liftKeys: ["press"] },
+      ],
+    },
+  },
 
   // Canonical week ordering (week one opens at 65%, not 70%), PR set on the
   // final set of every week. Not role-keyed — unchanged between Leader and

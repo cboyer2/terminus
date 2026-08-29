@@ -13,19 +13,50 @@ export const bbbOriginalTemplate: Template = {
   // "Compatible anchors" — that don't exist as records yet; adding them
   // here would fabricate ids ahead of the templates they'd point to.
   compatibleAnchorIds: ["original-531"],
-  // The book supports 3 or 4 days, but the 3-day schedule is an alternating,
-  // week-index-dependent rotation that SessionShape can't express yet — a
-  // known gap (docs/ARCHITECTURE.md §8: "lifts whose day position depends on
-  // the week index (3-day BBB's rotation)"). Scoped to 4 until that lands.
-  supportedDayCounts: [4],
+  supportedDayCounts: [4, 3],
   tmPercentage: { kind: "range", min: 0.85, max: 0.9, default: 0.85 },
 
-  sessionShape: [
-    { label: "Squat", liftKeys: ["squat"] },
-    { label: "Bench Press", liftKeys: ["bench"] },
-    { label: "Deadlift", liftKeys: ["deadlift"] },
-    { label: "Press", liftKeys: ["press"] },
-  ],
+  sessionShape: {
+    4: {
+      workouts: [
+        { label: "Squat", liftKeys: ["squat"] },
+        { label: "Bench Press", liftKeys: ["bench"] },
+        { label: "Deadlift", liftKeys: ["deadlift"] },
+        { label: "Press", liftKeys: ["press"] },
+      ],
+    },
+    // The 3-day schedule is a 4-calendar-week rotation, not 3 — each lift
+    // sits out exactly one week in four, per the owner (corrected from an
+    // earlier, wrong 3-week reading of this doc). Every lift still gets
+    // exactly 3 appearances — one per progression step — by the time the
+    // rotation wraps; see cycles.ts's week-rotation branch of
+    // buildMainCycleSessions for how a lift's own appearance count (not the
+    // calendar week) picks its progression step.
+    3: {
+      weeks: [
+        [
+          { label: "Squat", liftKeys: ["squat"] },
+          { label: "Bench Press", liftKeys: ["bench"] },
+          { label: "Deadlift", liftKeys: ["deadlift"] },
+        ],
+        [
+          { label: "Press", liftKeys: ["press"] },
+          { label: "Squat", liftKeys: ["squat"] },
+          { label: "Bench Press", liftKeys: ["bench"] },
+        ],
+        [
+          { label: "Deadlift", liftKeys: ["deadlift"] },
+          { label: "Press", liftKeys: ["press"] },
+          { label: "Squat", liftKeys: ["squat"] },
+        ],
+        [
+          { label: "Bench Press", liftKeys: ["bench"] },
+          { label: "Deadlift", liftKeys: ["deadlift"] },
+          { label: "Press", liftKeys: ["press"] },
+        ],
+      ],
+    },
+  },
 
   // Three selectable bases, per docs/templates/boring-but-big.md "Main
   // work" — none is role-keyed since this template is Leader-only.
@@ -90,9 +121,12 @@ export const bbbOriginalTemplate: Template = {
 
   // 5x10 at a flat percentage of the training max, per lift — the default
   // (50%) is overridable per lift via program.options.
-  // supplementalPercentageByLift, e.g. to run squat/deadlift lower. The
-  // alternate set schemes (3x10, 1x10 ascending) and the opposite-lift
-  // option are documented but not wired into the generator yet.
+  // supplementalPercentageByLift, e.g. to run squat/deadlift lower. Which
+  // lift's training max that percentage applies to is a single, program-wide
+  // toggle — program.options.supplementalOppositeLift, resolved in
+  // cycles.ts's supplementalBasisLiftKey — not per-lift, per the owner. The
+  // alternate set schemes (3x10, 1x10 ascending) are still documented but
+  // not wired into the generator yet.
   supplemental: { sets: 5, reps: 10, source: "percentageOfTrainingMax", percentageOfTrainingMax: 0.5 },
 
   assistance: [

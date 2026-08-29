@@ -29,7 +29,15 @@ const liftMap = liftsByKey(lifts);
 
 const program: Program = {
   programmingModel: "2+1",
-  trainingDays: 4,
+  leaderTrainingDays: 4,
+  // Non-null even though this fixture's own `leaderTemplateId` never runs
+  // original-531 as an Anchor — one test below calls buildMainCycleSessions
+  // with role="anchor" directly to check assistance's role-keying, which
+  // needs a day count to resolve original-531's (day-count-independent)
+  // session shape.
+  anchorTrainingDays: 4,
+  deloadTrainingDays: null,
+  tmTestTrainingDays: 4,
   leaderTemplateId: "original-531",
   anchorTemplateId: null,
   tmPercentage: 0.9,

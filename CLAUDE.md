@@ -35,9 +35,16 @@ Stored state is small and input-only:
 - **Lifts** — each with a `training_max_seed_lb`, an increment, a stable
   `lift_key`, a main/supplemental role, and a nullable
   `tm_percentage_override`.
-- **Program** — one row: programming model, training days (2–4), leader
-  template, anchor template (null for beginner), a **plan-wide** TM
-  percentage, and a template-options payload.
+- **Program** — one row: programming model, four independent training-day
+  counts (2–4) — the Leader phase, the Anchor phase (null for beginner), the
+  mid-plan 7th Week deload (null for beginner, no phase transition), and
+  the closing 7th Week TM test (always set) — leader template, anchor
+  template (null for beginner), a **plan-wide** TM percentage, and a
+  template-options payload. The Leader and Anchor may run at different day
+  counts (the book pairs a 3-day Leader with a 4-day Anchor, e.g. Original
+  5/3/1 A/B into the canonical Original 5/3/1), and each 7th Week Protocol
+  occurrence's day count is its own choice, independent of both phases and
+  of each other — never inherited.
 
 The TM percentage is plan-wide, defaulted from the Leader template, and lives
 on the program. A lift may override it (`override ?? program.tmPercentage`) —

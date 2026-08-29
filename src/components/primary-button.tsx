@@ -5,13 +5,13 @@ import { StyleSheet } from "react-native";
 // UniversalStyle (the Button's own `style` prop) doesn't support text color,
 // size, or weight — the native filled-button text convention applies
 // instead, which trades exact control for a native look-and-feel.
-const BUTTON_STYLE: UniversalStyle = {
+export const BUTTON_STYLE: UniversalStyle = {
   backgroundColor: colors.systemBlue,
   borderRadius: 4,
   padding: spacing.md,
 };
 
-const BUTTON_DISABLED_STYLE: UniversalStyle = {
+export const BUTTON_DISABLED_STYLE: UniversalStyle = {
   ...BUTTON_STYLE,
   opacity: 0.5,
 };

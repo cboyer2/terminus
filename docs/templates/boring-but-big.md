@@ -40,7 +40,13 @@ day holds which lift is freely adjustable.
 
 **Three days** — an alternating schedule that does not repeat weekly. Week one
 squat / bench / deadlift, week two press / squat / bench, week three deadlift /
-press / squat. A lift's position depends on the week index.
+press / squat, week four bench / deadlift / press. A lift's position depends
+on the week index. The rotation is four calendar weeks, not three — each lift
+sits out exactly one week in four, but still gets exactly three appearances
+(one per progression step) by the time the rotation wraps. A lift's own
+progression step advances on its own appearances, not the calendar week: e.g.
+bench sits out week three, so its own third appearance (the 75/85/95 step)
+falls on week four, not week three.
 
 ## Templates in this family
 

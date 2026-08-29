@@ -270,16 +270,39 @@ lifts
   unique (user_id, lift_key)
 
 program
-  user_id               uuid, pk — one row per user, and that is the point
-  programming_model     text, 'beginner' | '2+1' | '2+2' | '3+2'
-  training_days         int, check between 2 and 4
-  leader_template_id    text
-  anchor_template_id    text, null for the beginner model
-  tm_percentage         numeric, 0–1 — plan-wide default, from the Leader
-  options               jsonb, template-specific optional selections
+  user_id                uuid, pk — one row per user, and that is the point
+  programming_model      text, 'beginner' | '2+1' | '2+2' | '3+2'
+  leader_training_days   int, check between 2 and 4 — also the standalone
+                         template's day count for the beginner model
+  anchor_training_days   int, check between 2 and 4, null for the beginner
+                         model — chosen independently of leader_training_days
+  deload_training_days   int, check between 2 and 4, null for the beginner
+                         model (no phase transition, so no deload) —
+                         independent of every other day-count column
+  tm_test_training_days  int, check between 2 and 4 — independent of every
+                         other day-count column; always set, since every
+                         plan closes with one
+  leader_template_id     text
+  anchor_template_id     text, null for the beginner model
+  tm_percentage          numeric, 0–1 — plan-wide default, from the Leader
+  options                jsonb, template-specific optional selections
 ```
 
-Five things worth noting about that shape:
+Six things worth noting about that shape:
+
+- **Training days is four independent choices, not one.** The book allows a
+  Leader and an Anchor to run at different day counts — Original 5/3/1 A/B
+  (three days) is explicitly meant to transition into the canonical Original
+  5/3/1 (four days) as its Anchor — and separately lets each 7th Week
+  Protocol occurrence (the mid-plan deload, the closing TM test) run at 2,
+  3, or 4 days regardless of either phase's count or the other occurrence's.
+  A single `training_days` column conflated all four into one value; each
+  now has its own column, and `cycles.ts`'s `buildMainCycleSessions` picks
+  `leader_training_days` or `anchor_training_days` based on which phase
+  (`TemplateRole`) is being built, while `generatePlan` passes
+  `deload_training_days` or `tm_test_training_days` into
+  `buildSeventhWeekSessions` explicitly depending on which occurrence it's
+  building — the function itself no longer reads either off `program`.
 
 - **`lift_key`, not `name`, is the identifier.** Templates are code and must
   refer to lifts by a stable key; free-text names would let "Bench Press" and
@@ -416,21 +439,25 @@ The design is deliberately unfinished in places. These are expected to force
 type changes as templates are added, and are listed so the churn is planned
 rather than alarming.
 
-- **Session shape is under-modelled.** It currently covers one lift per day.
-  It also needs: lifts whose day position depends on the week index (3-day
-  BBB's rotation), two main lifts in one session (Full Body BBB, Original
-  5/3/1 A/B), and a main-work scheme that differs between sessions within the
-  same week (Original 5/3/1 A/B runs 3×5, 3×5, 3×3 in week one before
-  switching to 5/3/1). This is the most likely thing to break.
+- **Session shape is under-modelled.** It now covers one lift per day, fixed
+  or week-rotation (`SessionShapeVariant`, resolved per training-day count —
+  bbb-original's 3-day rotation, where a lift's day position and its own
+  progression step both depend on the week index, not a shared one). Still
+  needed: two main lifts in one session (Full Body BBB, Original 5/3/1 A/B),
+  and a main-work scheme that differs between sessions within the same week
+  (Original 5/3/1 A/B runs 3×5, 3×5, 3×3 in week one before switching to
+  5/3/1). This is the most likely thing to break next.
 - **Main work needs per-set flags.** PR sets on some weeks only, goal-rep
   targets, "work up to the training max for a single." A percentage/rep table
   can't express these.
 - **Conditional sets don't exist yet.** Jokers are performed only if the PR
   set went well — a set that may or may not happen has no representation.
-- **Supplemental is untested.** BBB's flat percentage and Original 5/3/1's
-  absence of supplemental work exercise none of the hard cases: percentage
-  varying by week or cycle, per-lift percentages, supplemental on the opposite
-  lift, or supplemental drawn from the main work's own first set.
+- **Supplemental still has one untested hard case.** BBB's flat percentage
+  (now with per-lift percentage overrides and a program-wide opposite-lift
+  toggle — see `supplementalBasisLiftKey` in `cycles.ts`) and Beginner's
+  first/second-set-last sourcing are both fixture-tested. What's left:
+  percentage that varies by week or cycle (Forever BBB, BBB Challenge) —
+  blocked on those templates, not on `cycles.ts` itself.
 
 **Consequence for build order:** let these types churn while they are only a
 generator and a fixture. Build the schema, `calc.ts`, the Beginner template

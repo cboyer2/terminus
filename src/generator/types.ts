@@ -138,13 +138,27 @@ export interface Workout {
 }
 
 /**
- * The repeating sequence of workouts a template runs, for a given role.
- * Not yet a function of day count too — every template so far supports
- * only one day count, so this hasn't been exercised. See
- * docs/ARCHITECTURE.md §8: "Session shape is a function of template and
- * training days."
+ * Either a fixed, calendar-week-independent sequence of workouts repeated
+ * every week (every template before bbb-original's 3-day rotation), or a
+ * week rotation — an ordered list of weeks, each naming that week's
+ * workouts, indexed by calendar week modulo `weeks.length`. `bbb-original`'s
+ * 3-day schedule needs this because a lift's day position — and which of
+ * its 3 progression steps a given calendar week uses — depends on the week
+ * index (docs/templates/boring-but-big.md "Session shape"). The two are
+ * told apart by their distinct keys, never by structural guessing, same
+ * convention as `MainWorkScheme`.
  */
-export type SessionShape = ByRole<Workout[]>;
+export type SessionShapeVariant = { workouts: Workout[] } | { weeks: Workout[][] };
+
+/**
+ * Session shape is a function of template AND training days, not a
+ * template property alone (docs/ARCHITECTURE.md §2) — keyed here by day
+ * count first, then by role via `ByRole`. Every template before
+ * bbb-original supported exactly one day count, so this axis went
+ * unexercised until its 3-day rotation needed a genuinely different shape
+ * (a week rotation) alongside its existing 4-day one (a fixed list).
+ */
+export type SessionShape = Partial<Record<2 | 3 | 4, ByRole<SessionShapeVariant>>>;
 
 export interface MainWorkSet {
   tmPercentage: number;
@@ -254,7 +268,21 @@ export interface Template {
 
 export interface Program {
   programmingModel: ProgrammingModelId;
-  trainingDays: 2 | 3 | 4;
+  /** Also the standalone template's day count when programmingModel is "beginner". */
+  leaderTrainingDays: 2 | 3 | 4;
+  /** Null exactly when anchorTemplateId is null (programmingModel is "beginner") — the
+   * book allows the Anchor to run at a different day count than the Leader (e.g. a
+   * 3-day Original 5/3/1 A/B Leader into a 4-day canonical Original 5/3/1 Anchor). */
+  anchorTrainingDays: (2 | 3 | 4) | null;
+  /** The mid-plan 7th Week deload, between the Leader and Anchor phases. Its own
+   * independent day-count choice — 2, 3, or 4 — per the book, not inherited from
+   * leaderTrainingDays or anchorTrainingDays. Null exactly when anchorTemplateId is
+   * null (no phase transition, so no deload). */
+  deloadTrainingDays: (2 | 3 | 4) | null;
+  /** The closing 7th Week TM test (or a future PR test, per PRD — not generated yet).
+   * Always set: every plan closes with one. Independent of leaderTrainingDays,
+   * anchorTrainingDays, and deloadTrainingDays alike. */
+  tmTestTrainingDays: 2 | 3 | 4;
   /** Holds the standalone template id when programmingModel is "beginner". */
   leaderTemplateId: TemplateId;
   anchorTemplateId: TemplateId | null;
@@ -291,6 +319,14 @@ export interface SessionLiftEntry {
   step: ProgressionStep;
   mainWork: PlannedSet[];
   supplemental: PlannedSet[];
+  /**
+   * Which lift's training max `supplemental` was computed from — equal to
+   * `liftKey` unless `program.options.supplementalOppositeLift` is set
+   * (see cycles.ts's supplementalBasisLiftKey). Meaningless when
+   * `supplemental` is empty, but always defined rather than optional, same
+   * as every other field here.
+   */
+  supplementalLiftKey: LiftKey;
 }
 
 export interface Session {
@@ -306,8 +342,9 @@ export interface Session {
  * docs/ARCHITECTURE.md "Weeks are not all the same shape".
  *
  * Named ProgressionStep, not Week, because the UI also has an actual
- * calendar week (`program.trainingDays` consecutive sessions) and the two
- * are not the same thing — see the module comment in app/(tabs)/index.tsx.
+ * calendar week (that phase's own training-days count of consecutive
+ * sessions) and the two are not the same thing — see the module comment in
+ * app/(tabs)/index.tsx.
  */
 export type ProgressionStep =
   | { kind: "main"; index: 0 | 1 | 2 }

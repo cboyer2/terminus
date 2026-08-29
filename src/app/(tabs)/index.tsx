@@ -1,8 +1,11 @@
 // The cheat sheet — a cycle picker plus a swipeable pager over that cycle's
-// calendar weeks. A calendar week is `program.trainingDays` consecutive
-// sessions — that holds for every template's main-work sessions (each
-// template's own workout rotation aside) and for the 7th Week Protocol
-// sessions too, since both are keyed by the same trainingDays setting.
+// calendar weeks. A calendar week is that cycle's own training-days count of
+// consecutive sessions — but that count isn't a single plan-wide constant:
+// the Leader phase, the Anchor phase, and the 7th Week Protocol can each run
+// at a different day count (docs/ARCHITECTURE.md §3), so a cycle bucket's
+// main-work sessions are chunked using whichever phase that cycle belongs to
+// (via PROGRAMMING_MODELS), while any trailing deload/tmTest sessions in the
+// same bucket are chunked separately using seventhWeekTrainingDays.
 // Per docs/ARCHITECTURE.md, a "week" bucket built this way isn't always a
 // uniform progression step for every lift inside it (Beginner's alternating
 // two-lift sessions mix progression steps within one such bucket) — a
@@ -21,7 +24,8 @@
 import { ThemedText } from "@/components/themed-text";
 import { usePlan } from "@/hooks/use-plan";
 import { colors, spacing } from "@/theme";
-import type { LiftKey, PlannedSet, ProgressionStep, Session, SessionLiftEntry } from "@/generator/types";
+import type { LiftKey, PlannedSet, Program, ProgressionStep, Session, SessionLiftEntry } from "@/generator/types";
+import { PROGRAMMING_MODELS } from "@/generator/types";
 import { Host, Picker } from "@expo/ui";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
@@ -119,7 +123,11 @@ function LiftEntryRow({ entry }: { entry: SessionLiftEntry }) {
       ))}
       {supplementalGroups.length > 0 && (
         <>
-          <ThemedText style={styles.supplementalLabel}>Supplemental</ThemedText>
+          <ThemedText style={styles.supplementalLabel}>
+            {entry.supplementalLiftKey === entry.liftKey
+              ? "Supplemental"
+              : `Supplemental (${LIFT_LABELS[entry.supplementalLiftKey]})`}
+          </ThemedText>
           {supplementalGroups.map((group, i) => (
             <SetRow key={`supp-${i}`} group={group} />
           ))}
@@ -154,10 +162,7 @@ function cycleLabel(sessions: Session[], cycleNumber: number): string {
   return `Cycle ${cycleNumber}`;
 }
 
-/** Splits an already cycle-filtered, already ordered session list into
- * chunks of `sessionsPerWeek` — see the module comment for why that's a
- * calendar week for every template built so far.
- */
+/** Splits an already-ordered session list into chunks of `sessionsPerWeek`. */
 function chunkIntoWeeks(sessions: Session[], sessionsPerWeek: number): Session[][] {
   const weeks: Session[][] = [];
   for (let i = 0; i < sessions.length; i += sessionsPerWeek) {
@@ -166,16 +171,52 @@ function chunkIntoWeeks(sessions: Session[], sessionsPerWeek: number): Session[]
   return weeks;
 }
 
+/** Which programming-model phase a cycle number belongs to — Leader (or
+ * standalone, for the Beginner model) vs Anchor — by counting off the
+ * declared cycle counts in PROGRAMMING_MODELS. Needed because a cycle
+ * bucket's main-work sessions must be chunked using *that phase's* day
+ * count, not a single plan-wide one — see the module comment.
+ */
+function isAnchorCycle(cycleNumber: number, programmingModel: Program["programmingModel"]): boolean {
+  const phases = PROGRAMMING_MODELS[programmingModel];
+  const leaderPhase = phases.find((p) => p.role !== "anchor");
+  return cycleNumber > (leaderPhase?.cycles ?? 0);
+}
+
+/** Chunks one cycle's sessions into calendar weeks, honouring that a single
+ * cycle bucket can mix two different day counts: its main-work sessions
+ * (Leader's or Anchor's day count, whichever phase this cycle belongs to)
+ * and, trailing them, an optional 7th Week Protocol block — a deload or a
+ * TM test, each its own independent day count — at its own independent day
+ * count. See cycles.ts's generatePlan — a 7th-week block shares the
+ * cycleNumber of the cycle it closes out, and a cycle bucket has at most
+ * one such block (deload and TM test never both attach to the same cycle).
+ */
+function chunkCycleIntoWeeks(cycleSessions: Session[], cycleNumber: number, program: Program): Session[][] {
+  const mainSessions = cycleSessions.filter((s) => s.lifts[0]?.step.kind === "main");
+  const seventhWeekSessions = cycleSessions.filter((s) => s.lifts[0]?.step.kind !== "main");
+  const mainSessionsPerWeek =
+    (isAnchorCycle(cycleNumber, program.programmingModel) ? program.anchorTrainingDays : program.leaderTrainingDays) ??
+    program.leaderTrainingDays;
+  const seventhWeekKind = seventhWeekSessions[0]?.lifts[0]?.step.kind;
+  const seventhWeekSessionsPerWeek =
+    (seventhWeekKind === "deload" ? program.deloadTrainingDays : program.tmTestTrainingDays) ?? program.tmTestTrainingDays;
+  return [
+    ...chunkIntoWeeks(mainSessions, mainSessionsPerWeek),
+    ...chunkIntoWeeks(seventhWeekSessions, seventhWeekSessionsPerWeek),
+  ];
+}
+
 /** Swipes one calendar week at a time within a single cycle — every session
  * in that week, not just one. Plain RN ScrollView, not @expo/ui —
  * pagingEnabled + horizontal is a long-established cross-platform pattern,
  * unlike the native-bridging components that have caused trouble elsewhere
  * in this app.
  */
-function WeekSwiper({ sessions, sessionsPerWeek }: { sessions: Session[]; sessionsPerWeek: number }) {
+function WeekSwiper({ sessions, cycleNumber, program }: { sessions: Session[]; cycleNumber: number; program: Program }) {
   const { width } = useWindowDimensions();
   const [pageIndex, setPageIndex] = useState(0);
-  const weeks = useMemo(() => chunkIntoWeeks(sessions, sessionsPerWeek), [sessions, sessionsPerWeek]);
+  const weeks = useMemo(() => chunkCycleIntoWeeks(sessions, cycleNumber, program), [sessions, cycleNumber, program]);
 
   return (
     <View style={styles.swiperContainer}>
@@ -207,7 +248,7 @@ function WeekSwiper({ sessions, sessionsPerWeek }: { sessions: Session[]; sessio
  * of an effect resetting its page index, per the same "you might not need
  * an effect" reasoning.
  */
-function CyclePager({ sessions, sessionsPerWeek }: { sessions: Session[]; sessionsPerWeek: number }) {
+function CyclePager({ sessions, program }: { sessions: Session[]; program: Program }) {
   const cycleNumbers = useMemo(() => [...new Set(sessions.map((s) => s.cycleNumber))].sort((a, b) => a - b), [sessions]);
   const [cyclePick, setCyclePick] = useState<number | null>(null);
   const selectedCycle = cyclePick !== null && cycleNumbers.includes(cyclePick) ? cyclePick : cycleNumbers[0];
@@ -223,7 +264,7 @@ function CyclePager({ sessions, sessionsPerWeek }: { sessions: Session[]; sessio
           ))}
         </Picker>
       </Host>
-      <WeekSwiper key={selectedCycle} sessions={cycleSessions} sessionsPerWeek={sessionsPerWeek} />
+      <WeekSwiper key={selectedCycle} sessions={cycleSessions} cycleNumber={selectedCycle} program={program} />
     </View>
   );
 }
@@ -251,7 +292,7 @@ export default function PlanScreen() {
       </View>
     );
   } else {
-    content = <CyclePager sessions={plan.sessions} sessionsPerWeek={program.trainingDays} />;
+    content = <CyclePager sessions={plan.sessions} program={program} />;
   }
 
   // NativeTabs renders no header and doesn't handle top safe area for a

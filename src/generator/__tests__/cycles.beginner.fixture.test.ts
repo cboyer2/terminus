@@ -30,7 +30,10 @@ const lifts: Lift[] = [
 
 const program: Program = {
   programmingModel: "beginner",
-  trainingDays: 3,
+  leaderTrainingDays: 3,
+  anchorTrainingDays: null,
+  deloadTrainingDays: null,
+  tmTestTrainingDays: 3,
   leaderTemplateId: "beginner",
   anchorTemplateId: null,
   tmPercentage: 0.9,

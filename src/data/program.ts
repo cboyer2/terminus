@@ -5,19 +5,23 @@ import type { Program, ProgrammingModelId, TemplateId } from "@/generator/types"
 
 import { supabase } from "./supabase";
 
-const PROGRAM_COLUMNS = "programming_model, training_days, leader_template_id, anchor_template_id, tm_percentage, options";
+const PROGRAM_COLUMNS =
+  "programming_model, leader_training_days, anchor_training_days, deload_training_days, tm_test_training_days, leader_template_id, anchor_template_id, tm_percentage, options";
 
 /**
  * The shape a SELECT actually returns — not the shape the columns are
- * declared as. `training_days` is a plain `int4` and comes back as a real
- * JSON number, but `tm_percentage` is `numeric`, which PostgREST returns as
- * a JSON *string* to avoid float precision loss. Trusting the declared type
- * for that field silently corrupts every calculation downstream (string +
- * number is concatenation, not addition).
+ * declared as. The `*_training_days` columns are plain `int4` and come back
+ * as real JSON numbers, but `tm_percentage` is `numeric`, which PostgREST
+ * returns as a JSON *string* to avoid float precision loss. Trusting the
+ * declared type for that field silently corrupts every calculation
+ * downstream (string + number is concatenation, not addition).
  */
 interface ProgramRow {
   programming_model: ProgrammingModelId;
-  training_days: 2 | 3 | 4;
+  leader_training_days: 2 | 3 | 4;
+  anchor_training_days: (2 | 3 | 4) | null;
+  deload_training_days: (2 | 3 | 4) | null;
+  tm_test_training_days: 2 | 3 | 4;
   leader_template_id: TemplateId;
   anchor_template_id: TemplateId | null;
   tm_percentage: string;
@@ -27,7 +31,10 @@ interface ProgramRow {
 function rowToProgram(row: ProgramRow): Program {
   return {
     programmingModel: row.programming_model,
-    trainingDays: row.training_days,
+    leaderTrainingDays: row.leader_training_days,
+    anchorTrainingDays: row.anchor_training_days,
+    deloadTrainingDays: row.deload_training_days,
+    tmTestTrainingDays: row.tm_test_training_days,
     leaderTemplateId: row.leader_template_id,
     anchorTemplateId: row.anchor_template_id,
     tmPercentage: Number(row.tm_percentage),
@@ -38,7 +45,10 @@ function rowToProgram(row: ProgramRow): Program {
 interface ProgramWriteRow {
   user_id: string;
   programming_model: ProgrammingModelId;
-  training_days: 2 | 3 | 4;
+  leader_training_days: 2 | 3 | 4;
+  anchor_training_days: (2 | 3 | 4) | null;
+  deload_training_days: (2 | 3 | 4) | null;
+  tm_test_training_days: 2 | 3 | 4;
   leader_template_id: TemplateId;
   anchor_template_id: TemplateId | null;
   tm_percentage: number;
@@ -49,7 +59,10 @@ function programToRow(userId: string, program: Program): ProgramWriteRow {
   return {
     user_id: userId,
     programming_model: program.programmingModel,
-    training_days: program.trainingDays,
+    leader_training_days: program.leaderTrainingDays,
+    anchor_training_days: program.anchorTrainingDays,
+    deload_training_days: program.deloadTrainingDays,
+    tm_test_training_days: program.tmTestTrainingDays,
     leader_template_id: program.leaderTemplateId,
     anchor_template_id: program.anchorTemplateId,
     tm_percentage: program.tmPercentage,

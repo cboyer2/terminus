@@ -33,7 +33,10 @@ const lifts: Lift[] = [
 
 const program: Program = {
   programmingModel: "2+1",
-  trainingDays: 4,
+  leaderTrainingDays: 4,
+  anchorTrainingDays: 4,
+  deloadTrainingDays: 4,
+  tmTestTrainingDays: 4,
   leaderTemplateId: "bbb-original",
   anchorTemplateId: "original-531",
   tmPercentage: 0.85,
@@ -137,5 +140,54 @@ describe("generatePlan — bbb-original (Leader) -> original-531 (Anchor), 2+1",
     for (const session of tmTestSessions) {
       expect(session.lifts[0].supplemental).toEqual([]);
     }
+  });
+});
+
+describe("generatePlan — mixed day counts: 3-day bbb-original (Leader) -> 4-day original-531 (Anchor), 2+1", () => {
+  // The book allows a Leader and Anchor to run at different day counts
+  // (e.g. Original 5/3/1 A/B into the canonical Original 5/3/1) — this is
+  // the first fixture to exercise that, plus the 7th Week Protocol's
+  // independent day count (docs/ARCHITECTURE.md §3, docs/plan-structure.md
+  // "Placement rules").
+  // deloadTrainingDays (3) and tmTestTrainingDays (2) are deliberately
+  // different from each other and from both phases' day counts, to prove
+  // all four training-day choices are genuinely independent.
+  const mixedProgram: Program = {
+    ...program,
+    leaderTrainingDays: 3,
+    anchorTrainingDays: 4,
+    deloadTrainingDays: 3,
+    tmTestTrainingDays: 2,
+  };
+  const plan = generatePlan(lifts, mixedProgram);
+
+  it("produces 41 sessions: 2 leader cycles (3-day rotation, 12 each) + 3-day deload (3) + 1 anchor cycle (4-day, 12) + 2-day TM test (2)", () => {
+    expect(plan.sessions).toHaveLength(24 + 3 + 12 + 2);
+  });
+
+  it("leader sessions follow bbb-original's 3-day week rotation, not the 4-day fixed shape", () => {
+    const order = plan.sessions.slice(0, 12).map((s) => s.lifts[0].liftKey);
+    expect(order).toEqual(["squat", "bench", "deadlift", "press", "squat", "bench", "deadlift", "press", "squat", "bench", "deadlift", "press"]);
+  });
+
+  it("the deload uses its own 3-day 7th Week layout (deadlift+press share the final session), not the Anchor's 4-day one", () => {
+    const deloadSessions = plan.sessions.slice(24, 27);
+    expect(deloadSessions.map((s) => s.lifts.map((l) => l.liftKey))).toEqual([["squat"], ["bench"], ["deadlift", "press"]]);
+  });
+
+  it("anchor sessions use original-531's 4-day fixed shape, one lift per session", () => {
+    const anchorSessions = plan.sessions.slice(27, 39);
+    for (const session of anchorSessions) {
+      expect(session.lifts).toHaveLength(1);
+    }
+    expect(anchorSessions.slice(0, 4).map((s) => s.lifts[0].liftKey)).toEqual(["squat", "bench", "deadlift", "press"]);
+  });
+
+  it("the closing TM test uses its own 2-day 7th Week layout, independent of the deload's 3-day one and both phases", () => {
+    const tmTestSessions = plan.sessions.slice(39, 41);
+    expect(tmTestSessions.map((s) => s.lifts.map((l) => l.liftKey))).toEqual([
+      ["squat", "bench"],
+      ["deadlift", "press"],
+    ]);
   });
 });

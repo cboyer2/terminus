@@ -27,6 +27,28 @@ function effectivePercentage(lift: Lift, program: Program): number {
   return lift.tmPercentageOverride ?? program.tmPercentage;
 }
 
+// docs/templates/boring-but-big.md, bbb-original "Options": "Supplemental
+// lift: same as main · opposite — Original permits the opposite lift, bench
+// main press supplemental." Program-wide, not per-lift — see
+// program.options.supplementalOppositeLift below — so the pairing is fixed
+// rather than user-configurable.
+const OPPOSITE_LIFT: Record<LiftKey, LiftKey> = {
+  squat: "deadlift",
+  deadlift: "squat",
+  bench: "press",
+  press: "bench",
+};
+
+/**
+ * Which lift's training max the supplemental weight is computed from.
+ * `program.options.supplementalOppositeLift` is a single, program-wide
+ * toggle (not per-lift) — turning it on swaps every session's supplemental
+ * basis to that session's paired lift.
+ */
+function supplementalBasisLiftKey(liftKey: LiftKey, options: Record<string, unknown>): LiftKey {
+  return options.supplementalOppositeLift === true ? OPPOSITE_LIFT[liftKey] : liftKey;
+}
+
 /**
  * Beginner assigns Second Set Last to lifts running the template's lower
  * declared percentage and First Set Last to the higher one (see
@@ -122,42 +144,84 @@ export function buildMainCycleSessions(
   cycleIndex: number,
   startingSessionNumber: number
 ): { sessions: Session[]; nextSessionNumber: number } {
-  const workouts = resolveByRole(template.sessionShape, role);
+  // The Leader and Anchor phases may run at different day counts (e.g. a
+  // 3-day Leader into a 4-day Anchor) — see docs/ARCHITECTURE.md §3.
+  const trainingDays = role === "anchor" ? program.anchorTrainingDays : program.leaderTrainingDays;
+  if (trainingDays === null) {
+    throw new Error(`${template.id}: no training days set for role ${role}`);
+  }
+  const shapeForDayCount = template.sessionShape[trainingDays];
+  if (!shapeForDayCount) {
+    throw new Error(`${template.id}: no session shape for ${trainingDays} training days`);
+  }
+  const shape = resolveByRole(shapeForDayCount, role);
   const mainWorkScheme = resolveMainWorkScheme(template.mainWorkScheme, role, program.options);
   const supplemental = resolveByRole(template.supplemental, role);
 
   const sessions: Session[] = [];
   let sessionNumber = startingSessionNumber;
 
-  for (let step = 0; step < mainWorkScheme.length; step++) {
+  function buildLiftEntry(liftKey: LiftKey, step: 0 | 1 | 2): SessionLiftEntry {
     const weekSets = mainWorkScheme[step];
-    for (const workout of workouts) {
-      const liftEntries: SessionLiftEntry[] = workout.liftKeys.map((liftKey) => {
-        const lift = requireLift(lifts, liftKey);
-        const tm = trainingMax(lift.trainingMaxSeed, lift.increment, cycleIndex);
-        const percentage = effectivePercentage(lift, program);
-        const prescription = resolveSupplemental(supplemental, percentage, template);
+    const lift = requireLift(lifts, liftKey);
+    const tm = trainingMax(lift.trainingMaxSeed, lift.increment, cycleIndex);
+    const percentage = effectivePercentage(lift, program);
+    const prescription = resolveSupplemental(supplemental, percentage, template);
 
-        let supplementalSets: PlannedSet[] = [];
-        if (prescription !== "none") {
-          const basisPercentage = supplementalBasisPercentage(weekSets, prescription, liftKey, program.options);
-          const supplementalWeight = workingWeight(tm, basisPercentage);
-          supplementalSets = Array.from({ length: prescription.sets }, () => ({
-            tmPercentage: basisPercentage,
-            workingWeight: supplementalWeight,
-            reps: prescription.reps,
-            isPrSet: false,
-          }));
-        }
+    const supplementalLiftKey = supplementalBasisLiftKey(liftKey, program.options);
 
-        return {
-          liftKey,
-          step: { kind: "main", index: step as 0 | 1 | 2 },
-          mainWork: buildPlannedSets(weekSets, tm),
-          supplemental: supplementalSets,
-        };
-      });
-      sessions.push({ sessionNumber: sessionNumber++, cycleNumber, lifts: liftEntries });
+    let supplementalSets: PlannedSet[] = [];
+    if (prescription !== "none") {
+      const basisPercentage = supplementalBasisPercentage(weekSets, prescription, liftKey, program.options);
+      const supplementalLift = supplementalLiftKey === liftKey ? lift : requireLift(lifts, supplementalLiftKey);
+      const supplementalTm = trainingMax(supplementalLift.trainingMaxSeed, supplementalLift.increment, cycleIndex);
+      const supplementalWeight = workingWeight(supplementalTm, basisPercentage);
+      supplementalSets = Array.from({ length: prescription.sets }, () => ({
+        tmPercentage: basisPercentage,
+        workingWeight: supplementalWeight,
+        reps: prescription.reps,
+        isPrSet: false,
+      }));
+    }
+
+    return {
+      liftKey,
+      step: { kind: "main", index: step },
+      mainWork: buildPlannedSets(weekSets, tm),
+      supplemental: supplementalSets,
+      supplementalLiftKey,
+    };
+  }
+
+  if ("workouts" in shape) {
+    // Fixed shape: every calendar week runs the same workouts, all stepping
+    // through the same progression bracket together — the case every
+    // template used before bbb-original's 3-day rotation.
+    for (let step = 0; step < mainWorkScheme.length; step++) {
+      for (const workout of shape.workouts) {
+        const liftEntries = workout.liftKeys.map((liftKey) => buildLiftEntry(liftKey, step as 0 | 1 | 2));
+        sessions.push({ sessionNumber: sessionNumber++, cycleNumber, lifts: liftEntries });
+      }
+    }
+  } else {
+    // Week rotation: a lift's day position — and which progression bracket
+    // it uses — depends on the calendar week index, not a shared step
+    // counter. Each lift tracks its own appearance count across the whole
+    // rotation (docs/templates/boring-but-big.md "Session shape"): its Nth
+    // appearance always uses progression step N-1, regardless of which
+    // calendar week that appearance falls on. A full rotation is one cycle,
+    // however many calendar weeks it spans — every lift still completes
+    // exactly `mainWorkScheme.length` appearances by the time it wraps.
+    const appearanceCount = new Map<LiftKey, number>();
+    for (const weekWorkouts of shape.weeks) {
+      for (const workout of weekWorkouts) {
+        const liftEntries = workout.liftKeys.map((liftKey) => {
+          const step = (appearanceCount.get(liftKey) ?? 0) as 0 | 1 | 2;
+          appearanceCount.set(liftKey, step + 1);
+          return buildLiftEntry(liftKey, step);
+        });
+        sessions.push({ sessionNumber: sessionNumber++, cycleNumber, lifts: liftEntries });
+      }
     }
   }
 
@@ -237,13 +301,14 @@ function buildSeventhWeekPlannedSets(scheme: SeventhWeekSet[], trainingMaxLb: nu
 function buildSeventhWeekSessions(
   stepKind: "deload" | "tmTest",
   schemeForPercentage: (percentage: number) => SeventhWeekSet[],
+  trainingDays: 2 | 3 | 4,
   lifts: Map<LiftKey, Lift>,
   program: Program,
   cycleNumber: number,
   cycleIndex: number,
   startingSessionNumber: number
 ): { sessions: Session[]; nextSessionNumber: number } {
-  const layout = SEVENTH_WEEK_LAYOUT[program.trainingDays];
+  const layout = SEVENTH_WEEK_LAYOUT[trainingDays];
   let sessionNumber = startingSessionNumber;
 
   const sessions: Session[] = layout.map((liftKeys) => {
@@ -256,6 +321,7 @@ function buildSeventhWeekSessions(
         step: { kind: stepKind },
         mainWork: buildSeventhWeekPlannedSets(schemeForPercentage(percentage), tm),
         supplemental: [],
+        supplementalLiftKey: liftKey,
       };
     });
     return { sessionNumber: sessionNumber++, cycleNumber, lifts: liftEntries };
@@ -292,9 +358,13 @@ export function generatePlan(lifts: Lift[], program: Program): Plan {
     // just completed, at the training max it just finished on.
     const isLastPhase = phaseIndex === phases.length - 1;
     if (!isLastPhase) {
+      if (program.deloadTrainingDays === null) {
+        throw new Error("Missing deloadTrainingDays for a plan with a phase transition");
+      }
       const deload = buildSeventhWeekSessions(
         "deload",
         deloadScheme,
+        program.deloadTrainingDays,
         liftMap,
         program,
         cycleNumber - 1,
@@ -308,7 +378,16 @@ export function generatePlan(lifts: Lift[], program: Program): Plan {
 
   const lastCycleNumber = cycleNumber - 1;
   const lastCycleIndex = cycleIndex - 1;
-  const tmTest = buildSeventhWeekSessions("tmTest", tmTestScheme, liftMap, program, lastCycleNumber, lastCycleIndex, sessionNumber);
+  const tmTest = buildSeventhWeekSessions(
+    "tmTest",
+    tmTestScheme,
+    program.tmTestTrainingDays,
+    liftMap,
+    program,
+    lastCycleNumber,
+    lastCycleIndex,
+    sessionNumber
+  );
   sessions.push(...tmTest.sessions);
 
   return { sessions };

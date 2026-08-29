@@ -19,10 +19,14 @@ export const beginnerTemplate: Template = {
   // Workout A / B alternate continuously across 3 sessions/week. Each
   // completes its own three-step progression over six sessions spanning two
   // calendar weeks, not three — see beginner.md "Resolved".
-  sessionShape: [
-    { label: "Workout A", liftKeys: ["squat", "bench"] },
-    { label: "Workout B", liftKeys: ["deadlift", "press"] },
-  ],
+  sessionShape: {
+    3: {
+      workouts: [
+        { label: "Workout A", liftKeys: ["squat", "bench"] },
+        { label: "Workout B", liftKeys: ["deadlift", "press"] },
+      ],
+    },
+  },
 
   // 3/5/1 week ordering, all fives, no PR set.
   mainWorkScheme: [

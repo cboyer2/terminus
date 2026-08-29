@@ -3,20 +3,31 @@
 // screen reads the template library through it rather than importing
 // generator/cycles.ts directly, since it never computes a Plan itself.
 //
-// Scoped to the core picker (model, days, leader, anchor, percentage) plus
-// bbb-original's two wired options (main-work base, per-lift supplemental
-// percentage — the only template with any options wired into the generator)
-// and the architecture's seed-rescale-on-percentage-change formula. A
-// template's own option rows sit directly under its picker, not off in
-// their own unrelated section further down the form.
+// Training days is four independent choices, not one: the Leader phase, the
+// Anchor phase, the mid-plan 7th Week deload, and the closing 7th Week TM
+// test can each run at a different day count — the book allows a 3-day
+// Leader into a 4-day Anchor (Original 5/3/1 A/B into the canonical
+// Original 5/3/1), and separately lets each 7th Week Protocol occurrence
+// run at 2, 3, or 4 days regardless of either phase or the other
+// occurrence. See docs/ARCHITECTURE.md §3 and docs/plan-structure.md
+// "Placement rules".
+//
+// Scoped to the core picker (model, days x4, leader, anchor, percentage)
+// plus bbb-original's two wired options (main-work base, per-lift
+// supplemental percentage — the only template with any options wired into
+// the generator) and the architecture's seed-rescale-on-percentage-change
+// formula. A template's own option rows live in a collapsible "Options"
+// submenu nested under its picker, not off in their own unrelated section
+// further down the form.
 
 import { usePlan } from "@/hooks/use-plan";
 import { useLifts } from "@/hooks/use-lifts";
+import { BUTTON_DISABLED_STYLE, BUTTON_STYLE } from "@/components/primary-button";
 import { rescaleTrainingMaxSeed } from "@/generator/calc";
 import { TEMPLATES } from "@/generator/templates";
 import type { LiftKey, MainWorkBase, Program, ProgrammingModelId, Template, TemplateId, TemplateRole } from "@/generator/types";
 import { PROGRAMMING_MODELS } from "@/generator/types";
-import { Button, FieldGroup, Host, Picker, Row, Spacer, Text as UIText } from "@expo/ui";
+import { Button, Collapsible, FieldGroup, Host, Picker, Row, Spacer, Text as UIText } from "@expo/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-screens/experimental";
@@ -35,13 +46,32 @@ const LIFT_LABELS: Record<LiftKey, string> = {
   press: "Press",
 };
 
-// docs/templates/boring-but-big.md "Options": "40-60%, per lift ... 50-55%
-// recommended." A small set of named steps, not a continuous range — same
-// convention as every other percentage choice in this app.
-const SUPPLEMENTAL_PERCENT_CHOICES = [40, 45, 50, 55, 60];
 /** Sentinel meaning "no override — use the template's own default (50%)". */
 const DEFAULT_SUPPLEMENTAL_PERCENT = "default" as const;
 type SupplementalPercentPick = typeof DEFAULT_SUPPLEMENTAL_PERCENT | number;
+
+// docs/templates/boring-but-big.md "Options": "40-60%, per lift ... 50-55%
+// recommended." A small set of named steps, not a continuous range — same
+// convention as every other percentage choice in this app. Listed in
+// ascending order, with 50% appearing once (as the default sentinel) rather
+// than twice.
+const SUPPLEMENTAL_PERCENT_ITEMS: { label: string; value: SupplementalPercentPick }[] = [
+  { label: "40%", value: 40 },
+  { label: "45%", value: 45 },
+  { label: "50% (default)", value: DEFAULT_SUPPLEMENTAL_PERCENT },
+  { label: "55%", value: 55 },
+  { label: "60%", value: 60 },
+];
+
+// docs/templates/boring-but-big.md "Options": "Supplemental lift: same as
+// main · opposite — bench main, press supplemental." One program-wide
+// choice, not per-lift, per the owner — squat/deadlift and bench/press are
+// the only pairings, fixed in cycles.ts's OPPOSITE_LIFT.
+type SupplementalLiftPick = "same" | "opposite";
+const SUPPLEMENTAL_LIFT_ITEMS: { label: string; value: SupplementalLiftPick }[] = [
+  { label: "Same as main", value: "same" },
+  { label: "Opposite lift", value: "opposite" },
+];
 
 const MODEL_LABELS: Record<ProgrammingModelId, string> = {
   beginner: "Beginner",
@@ -87,7 +117,11 @@ function PickerRow({
   items: { label: string; value: string | number }[];
 }) {
   return (
-    <Row>
+    // alignment="center" — Row's own default ("start", i.e. top-aligned
+    // cross-axis) top-aligns children instead of centering them, which
+    // reads as the label sitting high whenever the Picker's rendered
+    // height exceeds the label text's.
+    <Row alignment="center">
       <UIText>{label}</UIText>
       <Spacer />
       <Picker selectedValue={selectedValue} onValueChange={onValueChange}>
@@ -111,7 +145,10 @@ export default function TemplatesScreen() {
   // state, which the React Compiler's lint rule flags as unnecessary
   // cascading renders (see "You Might Not Need an Effect").
   const [programmingModel, setProgrammingModel] = useState<ProgrammingModelId>("beginner");
-  const [trainingDaysPick, setTrainingDaysPick] = useState<2 | 3 | 4>(3);
+  const [leaderTrainingDaysPick, setLeaderTrainingDaysPick] = useState<2 | 3 | 4>(3);
+  const [anchorTrainingDaysPick, setAnchorTrainingDaysPick] = useState<2 | 3 | 4>(4);
+  const [deloadTrainingDaysPick, setDeloadTrainingDaysPick] = useState<2 | 3 | 4>(4);
+  const [tmTestTrainingDaysPick, setTmTestTrainingDaysPick] = useState<2 | 3 | 4>(3);
   const [leaderTemplateIdPick, setLeaderTemplateIdPick] = useState<TemplateId>("");
   const [anchorTemplateIdPick, setAnchorTemplateIdPick] = useState<TemplateId | null>(null);
   const [tmPercentagePick, setTmPercentagePick] = useState<number>(0.9);
@@ -122,7 +159,11 @@ export default function TemplatesScreen() {
     deadlift: DEFAULT_SUPPLEMENTAL_PERCENT,
     press: DEFAULT_SUPPLEMENTAL_PERCENT,
   });
+  const [supplementalLiftPick, setSupplementalLiftPick] = useState<SupplementalLiftPick>("same");
   const [isSaving, setIsSaving] = useState(false);
+  // Collapsed by default — most templates have no options, so a template
+  // that does shouldn't push its picker rows into view unasked.
+  const [bbbOptionsOpen, setBbbOptionsOpen] = useState(false);
 
   // Pre-fill once from the existing program, if any — after that, the
   // user's own edits win over a background refetch. This effect genuinely
@@ -133,7 +174,10 @@ export default function TemplatesScreen() {
     if (program && !initialized.current) {
       initialized.current = true;
       setProgrammingModel(program.programmingModel);
-      setTrainingDaysPick(program.trainingDays);
+      setLeaderTrainingDaysPick(program.leaderTrainingDays);
+      setAnchorTrainingDaysPick(program.anchorTrainingDays ?? 4);
+      setDeloadTrainingDaysPick(program.deloadTrainingDays ?? 4);
+      setTmTestTrainingDaysPick(program.tmTestTrainingDays);
       setLeaderTemplateIdPick(program.leaderTemplateId);
       setAnchorTemplateIdPick(program.anchorTemplateId);
       setTmPercentagePick(program.tmPercentage);
@@ -146,13 +190,14 @@ export default function TemplatesScreen() {
         deadlift: savedOverrides?.deadlift !== undefined ? Math.round(savedOverrides.deadlift * 100) : DEFAULT_SUPPLEMENTAL_PERCENT,
         press: savedOverrides?.press !== undefined ? Math.round(savedOverrides.press * 100) : DEFAULT_SUPPLEMENTAL_PERCENT,
       });
+      setSupplementalLiftPick(program.options?.supplementalOppositeLift === true ? "opposite" : "same");
     }
   }, [program]);
 
   const isBeginnerModel = programmingModel === "beginner";
   const allTemplates = useMemo(() => Object.values(TEMPLATES), []);
 
-  const availableDayCounts = useMemo(() => {
+  const leaderAvailableDayCounts = useMemo(() => {
     const role: TemplateRole = isBeginnerModel ? "standalone" : "leader";
     const days = new Set<number>();
     for (const t of allTemplates) {
@@ -163,22 +208,42 @@ export default function TemplatesScreen() {
     return [...days].sort((a, b) => a - b) as (2 | 3 | 4)[];
   }, [allTemplates, isBeginnerModel]);
 
-  const trainingDays = availableDayCounts.includes(trainingDaysPick) ? trainingDaysPick : (availableDayCounts[0] ?? trainingDaysPick);
+  const leaderTrainingDays = leaderAvailableDayCounts.includes(leaderTrainingDaysPick)
+    ? leaderTrainingDaysPick
+    : (leaderAvailableDayCounts[0] ?? leaderTrainingDaysPick);
 
   const leaderOptions = useMemo(() => {
     const role: TemplateRole = isBeginnerModel ? "standalone" : "leader";
-    return allTemplates.filter((t) => eligibleForRole(t, role) && t.supportedDayCounts.includes(trainingDays));
-  }, [allTemplates, isBeginnerModel, trainingDays]);
+    return allTemplates.filter((t) => eligibleForRole(t, role) && t.supportedDayCounts.includes(leaderTrainingDays));
+  }, [allTemplates, isBeginnerModel, leaderTrainingDays]);
 
   const leaderTemplateId = leaderOptions.some((t) => t.id === leaderTemplateIdPick) ? leaderTemplateIdPick : (leaderOptions[0]?.id ?? "");
   const leaderTemplate = leaderTemplateId ? TEMPLATES[leaderTemplateId] : undefined;
 
+  // The Anchor's day count is chosen independently of the Leader's — the
+  // book allows a 3-day Leader into a 4-day Anchor (e.g. Original 5/3/1 A/B
+  // into the canonical Original 5/3/1). See the module comment.
+  const anchorAvailableDayCounts = useMemo(() => {
+    if (isBeginnerModel || !leaderTemplate) return [];
+    const days = new Set<number>();
+    for (const t of allTemplates) {
+      if (eligibleForRole(t, "anchor") && leaderTemplate.compatibleAnchorIds.includes(t.id)) {
+        t.supportedDayCounts.forEach((d) => days.add(d));
+      }
+    }
+    return [...days].sort((a, b) => a - b) as (2 | 3 | 4)[];
+  }, [allTemplates, isBeginnerModel, leaderTemplate]);
+
+  const anchorTrainingDays = anchorAvailableDayCounts.includes(anchorTrainingDaysPick)
+    ? anchorTrainingDaysPick
+    : (anchorAvailableDayCounts[0] ?? anchorTrainingDaysPick);
+
   const anchorOptions = useMemo(() => {
     if (isBeginnerModel || !leaderTemplate) return [];
     return allTemplates.filter(
-      (t) => eligibleForRole(t, "anchor") && t.supportedDayCounts.includes(trainingDays) && leaderTemplate.compatibleAnchorIds.includes(t.id)
+      (t) => eligibleForRole(t, "anchor") && t.supportedDayCounts.includes(anchorTrainingDays) && leaderTemplate.compatibleAnchorIds.includes(t.id)
     );
-  }, [allTemplates, isBeginnerModel, leaderTemplate, trainingDays]);
+  }, [allTemplates, isBeginnerModel, leaderTemplate, anchorTrainingDays]);
 
   const anchorTemplateId = isBeginnerModel
     ? null
@@ -218,10 +283,18 @@ export default function TemplatesScreen() {
       } else {
         delete options.supplementalPercentageByLift;
       }
+      if (supplementalLiftPick === "opposite") {
+        options.supplementalOppositeLift = true;
+      } else {
+        delete options.supplementalOppositeLift;
+      }
     }
     const next: Program = {
       programmingModel,
-      trainingDays,
+      leaderTrainingDays,
+      anchorTrainingDays: isBeginnerModel ? null : anchorTrainingDays,
+      deloadTrainingDays: isBeginnerModel ? null : deloadTrainingDaysPick,
+      tmTestTrainingDays: tmTestTrainingDaysPick,
       leaderTemplateId,
       anchorTemplateId,
       tmPercentage,
@@ -255,17 +328,22 @@ export default function TemplatesScreen() {
     }
   }, [
     anchorTemplateId,
+    anchorTrainingDays,
+    deloadTrainingDaysPick,
     isBbbOriginalLeader,
+    isBeginnerModel,
     leaderTemplateId,
+    leaderTrainingDays,
     lifts,
     mainWorkBasePick,
+    tmTestTrainingDaysPick,
+    supplementalLiftPick,
     supplementalPercentPicks,
     program,
     programmingModel,
     saveLift,
     saveProgram,
     tmPercentage,
-    trainingDays,
   ]);
 
   return (
@@ -281,12 +359,12 @@ export default function TemplatesScreen() {
             />
           </FieldGroup.Section>
 
-          <FieldGroup.Section title="Training Days">
+          <FieldGroup.Section title={isBeginnerModel ? "Training Days" : "Leader Training Days"}>
             <PickerRow
               label="Days per week"
-              selectedValue={trainingDays}
-              onValueChange={(v) => setTrainingDaysPick(v as 2 | 3 | 4)}
-              items={availableDayCounts.map((d) => ({ label: String(d), value: d }))}
+              selectedValue={leaderTrainingDays}
+              onValueChange={(v) => setLeaderTrainingDaysPick(v as 2 | 3 | 4)}
+              items={leaderAvailableDayCounts.map((d) => ({ label: String(d), value: d }))}
             />
           </FieldGroup.Section>
 
@@ -297,33 +375,70 @@ export default function TemplatesScreen() {
               onValueChange={(v) => setLeaderTemplateIdPick(v as TemplateId)}
               items={leaderOptions.map((t) => ({ label: t.name, value: t.id }))}
             />
+            {/* A submenu nested under the template it configures, rather
+                than its own always-open section — most templates have no
+                options at all, so a disclosure row reads as "extra settings
+                for this choice" instead of permanently claiming form space. */}
+            {isBbbOriginalLeader && (
+              <Collapsible isOpen={bbbOptionsOpen} onOpenChange={setBbbOptionsOpen} label="Options">
+                <PickerRow
+                  label="Main Work Base"
+                  selectedValue={mainWorkBasePick}
+                  onValueChange={(v) => setMainWorkBasePick(v as MainWorkBase)}
+                  items={(Object.keys(MAIN_WORK_BASE_LABELS) as MainWorkBase[]).map((base) => ({
+                    label: MAIN_WORK_BASE_LABELS[base],
+                    value: base,
+                  }))}
+                />
+                {/* Program-wide, not per-lift — squat/deadlift and
+                    bench/press are the only pairings, fixed in cycles.ts. */}
+                <PickerRow
+                  label="Supplemental Lift"
+                  selectedValue={supplementalLiftPick}
+                  onValueChange={(v) => setSupplementalLiftPick(v as SupplementalLiftPick)}
+                  items={SUPPLEMENTAL_LIFT_ITEMS}
+                />
+                {LIFT_ORDER.map((liftKey) => (
+                  <PickerRow
+                    key={liftKey}
+                    label={`${LIFT_LABELS[liftKey]} Supplemental %`}
+                    selectedValue={supplementalPercentPicks[liftKey]}
+                    onValueChange={(v) => setSupplementalPercentPicks((prev) => ({ ...prev, [liftKey]: v as SupplementalPercentPick }))}
+                    items={SUPPLEMENTAL_PERCENT_ITEMS}
+                  />
+                ))}
+              </Collapsible>
+            )}
           </FieldGroup.Section>
 
-          {/* Sits directly under the template it configures, not off in its
-              own section further down the form. */}
-          {isBbbOriginalLeader && (
-            <FieldGroup.Section title="Boring But Big Options">
+          {/* Sits between the Leader and Anchor sections — it's the plan's
+              transition point between the two phases (docs/plan-structure.md
+              "Placement rules"), so it reads more naturally there than
+              lumped in with the plan-wide pickers below. Independent of
+              every phase's day count and of the closing TM test's — the
+              book allows each 7th Week Protocol occurrence to run at 2, 3,
+              or 4 days regardless of the surrounding phase or the other
+              occurrence. No deload exists for the Beginner model (a single
+              phase has no transition to deload between). */}
+          {!isBeginnerModel && (
+            <FieldGroup.Section title="7th Week Deload">
               <PickerRow
-                label="Main Work Base"
-                selectedValue={mainWorkBasePick}
-                onValueChange={(v) => setMainWorkBasePick(v as MainWorkBase)}
-                items={(Object.keys(MAIN_WORK_BASE_LABELS) as MainWorkBase[]).map((base) => ({
-                  label: MAIN_WORK_BASE_LABELS[base],
-                  value: base,
-                }))}
+                label="Days per week"
+                selectedValue={deloadTrainingDaysPick}
+                onValueChange={(v) => setDeloadTrainingDaysPick(v as 2 | 3 | 4)}
+                items={[2, 3, 4].map((d) => ({ label: String(d), value: d }))}
               />
-              {LIFT_ORDER.map((liftKey) => (
-                <PickerRow
-                  key={liftKey}
-                  label={`${LIFT_LABELS[liftKey]} Supplemental %`}
-                  selectedValue={supplementalPercentPicks[liftKey]}
-                  onValueChange={(v) => setSupplementalPercentPicks((prev) => ({ ...prev, [liftKey]: v as SupplementalPercentPick }))}
-                  items={[
-                    { label: "Template default (50%)", value: DEFAULT_SUPPLEMENTAL_PERCENT },
-                    ...SUPPLEMENTAL_PERCENT_CHOICES.map((p) => ({ label: `${p}%`, value: p })),
-                  ]}
-                />
-              ))}
+            </FieldGroup.Section>
+          )}
+
+          {!isBeginnerModel && (
+            <FieldGroup.Section title="Anchor Training Days">
+              <PickerRow
+                label="Days per week"
+                selectedValue={anchorTrainingDays}
+                onValueChange={(v) => setAnchorTrainingDaysPick(v as 2 | 3 | 4)}
+                items={anchorAvailableDayCounts.map((d) => ({ label: String(d), value: d }))}
+              />
             </FieldGroup.Section>
           )}
 
@@ -338,6 +453,15 @@ export default function TemplatesScreen() {
             </FieldGroup.Section>
           )}
 
+          <FieldGroup.Section title="7th Week TM Test">
+            <PickerRow
+              label="Days per week"
+              selectedValue={tmTestTrainingDaysPick}
+              onValueChange={(v) => setTmTestTrainingDaysPick(v as 2 | 3 | 4)}
+              items={[2, 3, 4].map((d) => ({ label: String(d), value: d }))}
+            />
+          </FieldGroup.Section>
+
           <FieldGroup.Section title="Training Max Percentage">
             <PickerRow
               label="Percentage"
@@ -345,21 +469,29 @@ export default function TemplatesScreen() {
               onValueChange={(v) => setTmPercentagePick(v as number)}
               items={percentageChoices.map((p) => ({ label: `${Math.round(p * 100)}%`, value: p }))}
             />
-          </FieldGroup.Section>
-
-          {/* Part of the scrollable form, not a fixed bottom element — the
-              floating NativeTabs bar sits above screen content in the view
-              hierarchy and its footprint can't be measured (per the
-              expo-router skill), so anything fixed near the bottom risks
-              being visually clipped *and* having its taps intercepted by
-              the tab bar itself. */}
-          {/* variant="text" — "filled" rendered as a small pill that didn't
-              fill its row's width even with style.width: "100%", leaving an
-              odd small-button-in-a-big-row look. A plain colored text row
-              (no pill competing with the row's own background) matches the
-              common native-Settings "Save"/"Done" row convention instead. */}
-          <FieldGroup.Section>
-            <Button variant="text" label={isSaving ? "Saving..." : "Save"} onPress={handleSave} disabled={isSaving} />
+            {/* A section footer, not a row — moving the button to a plain
+                RN sibling below the Host cleared the gray row background
+                but then sat outside the Form's own native, safe-area-aware
+                scrolling, so it rendered underneath the floating NativeTabs
+                bar (whose footprint isn't exposed to RN's layout system —
+                see _layout.tsx). SwiftUI renders a Section's footer below
+                its grouped box in the plain page background, which drops
+                the row background *and* keeps the button inside the Form's
+                own scroll content, so it inherits the same tab-bar-safe
+                bottom inset every other row already gets for free. */}
+            <FieldGroup.SectionFooter>
+              <Row alignment="center">
+                <Spacer />
+                <Button
+                  variant="filled"
+                  label={isSaving ? "Saving..." : "Save"}
+                  onPress={handleSave}
+                  disabled={isSaving}
+                  style={isSaving ? BUTTON_DISABLED_STYLE : BUTTON_STYLE}
+                />
+                <Spacer />
+              </Row>
+            </FieldGroup.SectionFooter>
           </FieldGroup.Section>
         </FieldGroup>
       </Host>
