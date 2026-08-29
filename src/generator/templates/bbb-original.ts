@@ -124,9 +124,10 @@ export const bbbOriginalTemplate: Template = {
   // supplementalPercentageByLift, e.g. to run squat/deadlift lower. Which
   // lift's training max that percentage applies to is a single, program-wide
   // toggle — program.options.supplementalOppositeLift, resolved in
-  // cycles.ts's supplementalBasisLiftKey — not per-lift, per the owner. The
-  // alternate set schemes (3x10, 1x10 ascending) are still documented but
-  // not wired into the generator yet.
+  // cycles.ts's supplementalBasisLiftKey — not per-lift, per the owner.
+  // 3x10 and 1x10-ascending are NOT options on this template — checked
+  // against the book, they belong to Slightly Less BBB (docs/templates/
+  // boring-but-big.md), a separate deferred template.
   supplemental: { sets: 5, reps: 10, source: "percentageOfTrainingMax", percentageOfTrainingMax: 0.5 },
 
   assistance: [
