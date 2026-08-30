@@ -5,7 +5,9 @@
 //
 // Deliberately not built here: per-lift TM percentage override editing
 // (Beginner's 90%/85%-per-lift case) — an existing override is preserved on
-// save, but there's no UI yet to set one fresh.
+// save, but setting one fresh lives on the Templates tab's "Advanced"
+// section, not here, since it's a template/plan-level decision, not a
+// number typed on this screen.
 
 import { TextField } from "@/components/text-field";
 import { ThemedText } from "@/components/themed-text";

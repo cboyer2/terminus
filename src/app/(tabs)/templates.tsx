@@ -15,9 +15,11 @@
 // Scoped to the core picker (model, days x4, leader, anchor, percentage)
 // plus bbb-original's two wired options (main-work base, per-lift
 // supplemental percentage — the only template with any options wired into
-// the generator) and the architecture's seed-rescale-on-percentage-change
-// formula. A template's own option rows live in a collapsible "Options"
-// submenu nested under its picker, not off in their own unrelated section
+// the generator), a per-lift TM percentage override, and the architecture's
+// seed-rescale-on-percentage-change formula. Every one of these "extra
+// setting for a choice above" cases is a collapsible "Options" submenu
+// nested under the setting it refines (the Leader Template picker, the
+// Training Max Percentage picker), not off in its own unrelated section
 // further down the form.
 
 import { usePlan } from "@/hooks/use-plan";
@@ -71,6 +73,27 @@ type SupplementalLiftPick = "same" | "opposite";
 const SUPPLEMENTAL_LIFT_ITEMS: { label: string; value: SupplementalLiftPick }[] = [
   { label: "Same as main", value: "same" },
   { label: "Opposite lift", value: "opposite" },
+];
+
+/** Sentinel meaning "no override — use the plan-wide percentage." */
+const PERCENTAGE_OVERRIDE_DEFAULT = "default" as const;
+type PercentageOverridePick = typeof PERCENTAGE_OVERRIDE_DEFAULT | number;
+
+// A per-lift override of the plan-wide TM percentage — niche (Beginner's
+// 90%/85%-per-lift split is the book's own example, but most plans never
+// touch this), so it lives in its own collapsed-by-default "Advanced"
+// section rather than the main setup flow. Same discrete-steps convention
+// as every other percentage choice in this app; the range spans what
+// docs/plan-structure.md's "On training maxes generally" cites across the
+// book (77% low end, 90% high end), rounded to 5% steps.
+const PERCENTAGE_OVERRIDE_ITEMS: { label: string; value: PercentageOverridePick }[] = [
+  { label: "Plan default", value: PERCENTAGE_OVERRIDE_DEFAULT },
+  { label: "70%", value: 70 },
+  { label: "75%", value: 75 },
+  { label: "80%", value: 80 },
+  { label: "85%", value: 85 },
+  { label: "90%", value: 90 },
+  { label: "95%", value: 95 },
 ];
 
 const MODEL_LABELS: Record<ProgrammingModelId, string> = {
@@ -160,10 +183,17 @@ export default function TemplatesScreen() {
     press: DEFAULT_SUPPLEMENTAL_PERCENT,
   });
   const [supplementalLiftPick, setSupplementalLiftPick] = useState<SupplementalLiftPick>("same");
+  const [percentageOverridePicks, setPercentageOverridePicks] = useState<Record<LiftKey, PercentageOverridePick>>({
+    squat: PERCENTAGE_OVERRIDE_DEFAULT,
+    bench: PERCENTAGE_OVERRIDE_DEFAULT,
+    deadlift: PERCENTAGE_OVERRIDE_DEFAULT,
+    press: PERCENTAGE_OVERRIDE_DEFAULT,
+  });
   const [isSaving, setIsSaving] = useState(false);
   // Collapsed by default — most templates have no options, so a template
   // that does shouldn't push its picker rows into view unasked.
   const [bbbOptionsOpen, setBbbOptionsOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   // Pre-fill once from the existing program, if any — after that, the
   // user's own edits win over a background refetch. This effect genuinely
@@ -193,6 +223,26 @@ export default function TemplatesScreen() {
       setSupplementalLiftPick(program.options?.supplementalOppositeLift === true ? "opposite" : "same");
     }
   }, [program]);
+
+  // Lifts load independently of program (a separate hook, a separate
+  // fetch), so this is its own pre-fill effect rather than folded into the
+  // one above.
+  const liftsInitialized = useRef(false);
+  useEffect(() => {
+    if (lifts && !liftsInitialized.current) {
+      liftsInitialized.current = true;
+      const overrideFor = (liftKey: LiftKey): PercentageOverridePick => {
+        const override = lifts.find((l) => l.liftKey === liftKey)?.tmPercentageOverride;
+        return override != null ? Math.round(override * 100) : PERCENTAGE_OVERRIDE_DEFAULT;
+      };
+      setPercentageOverridePicks({
+        squat: overrideFor("squat"),
+        bench: overrideFor("bench"),
+        deadlift: overrideFor("deadlift"),
+        press: overrideFor("press"),
+      });
+    }
+  }, [lifts]);
 
   const isBeginnerModel = programmingModel === "beginner";
   const allTemplates = useMemo(() => Object.values(TEMPLATES), []);
@@ -304,18 +354,26 @@ export default function TemplatesScreen() {
     try {
       await saveProgram(next);
 
-      // Rescale seeds for lifts using the plan-wide default — a lift with
-      // its own override keeps it regardless of the program's percentage,
-      // so its effective percentage (and therefore its seed) doesn't
-      // change. See docs/ARCHITECTURE.md §3 "Changing the percentage."
+      // Rescale seeds wherever a lift's *effective* percentage just
+      // changed — whether that's because the plan-wide default moved (a
+      // lift with no override), because this save sets, changes, or clears
+      // a per-lift override, or both at once. See docs/ARCHITECTURE.md §3
+      // "Changing the percentage."
       const oldPercentage = program?.tmPercentage;
-      if (oldPercentage !== undefined && oldPercentage !== tmPercentage && lifts) {
+      if (oldPercentage !== undefined && lifts) {
         for (const lift of lifts) {
-          if (lift.tmPercentageOverride === null) {
-            const rescaledSeed = rescaleTrainingMaxSeed(lift.trainingMaxSeed, oldPercentage, tmPercentage);
-            if (rescaledSeed !== lift.trainingMaxSeed) {
-              await saveLift({ ...lift, trainingMaxSeed: rescaledSeed });
-            }
+          const overridePick = percentageOverridePicks[lift.liftKey];
+          const newOverride = overridePick === PERCENTAGE_OVERRIDE_DEFAULT ? null : overridePick / 100;
+          const oldEffectivePercentage = lift.tmPercentageOverride ?? oldPercentage;
+          const newEffectivePercentage = newOverride ?? tmPercentage;
+          if (oldEffectivePercentage !== newEffectivePercentage) {
+            const rescaledSeed = rescaleTrainingMaxSeed(lift.trainingMaxSeed, oldEffectivePercentage, newEffectivePercentage);
+            await saveLift({ ...lift, tmPercentageOverride: newOverride, trainingMaxSeed: rescaledSeed });
+          } else if (newOverride !== lift.tmPercentageOverride) {
+            // The effective percentage didn't move, but the override field
+            // itself did (e.g. explicitly set to the plan's own value) —
+            // still persist it, just with no seed to rescale.
+            await saveLift({ ...lift, tmPercentageOverride: newOverride });
           }
         }
       }
@@ -336,6 +394,7 @@ export default function TemplatesScreen() {
     leaderTrainingDays,
     lifts,
     mainWorkBasePick,
+    percentageOverridePicks,
     tmTestTrainingDaysPick,
     supplementalLiftPick,
     supplementalPercentPicks,
@@ -469,6 +528,26 @@ export default function TemplatesScreen() {
               onValueChange={(v) => setTmPercentagePick(v as number)}
               items={percentageChoices.map((p) => ({ label: `${Math.round(p * 100)}%`, value: p }))}
             />
+            {/* Nested the same way as bbb-original's own Options submenu
+                under Leader Template — a submenu under the setting it
+                refines, collapsed by default since it's used rarely. Only
+                shown once at least one lift exists: an override lives on
+                the lift's own stored row (data/lifts.ts), which doesn't
+                exist until a first max is entered on the Maxes tab, so
+                there's nothing yet to attach an override to before then. */}
+            {lifts && lifts.length > 0 && (
+              <Collapsible isOpen={advancedOpen} onOpenChange={setAdvancedOpen} label="Options">
+                {LIFT_ORDER.filter((liftKey) => lifts.some((l) => l.liftKey === liftKey)).map((liftKey) => (
+                  <PickerRow
+                    key={liftKey}
+                    label={LIFT_LABELS[liftKey]}
+                    selectedValue={percentageOverridePicks[liftKey]}
+                    onValueChange={(v) => setPercentageOverridePicks((prev) => ({ ...prev, [liftKey]: v as PercentageOverridePick }))}
+                    items={PERCENTAGE_OVERRIDE_ITEMS}
+                  />
+                ))}
+              </Collapsible>
+            )}
             {/* A section footer, not a row — moving the button to a plain
                 RN sibling below the Host cleared the gray row background
                 but then sat outside the Form's own native, safe-area-aware
