@@ -24,6 +24,19 @@ export function estimatedMax(liftedWeightLb: number, repsCompleted: number): num
 }
 
 /**
+ * A one-rep max from a weight actually lifted for some number of reps —
+ * the shared entry point for both "enter your maxes" and "a failed 7th Week
+ * TM test," which are the same question (what's this weight worth as a
+ * max?) asked in two different screens. `repsCompleted <= 1` means the
+ * weight itself already *is* the max, so the estimating formula is skipped
+ * rather than run with reps=1, which would multiply the weight by 1.0333
+ * instead of returning it unchanged.
+ */
+export function oneRepMaxFromPerformance(liftedWeightLb: number, repsCompleted: number): number {
+  return repsCompleted <= 1 ? liftedWeightLb : estimatedMax(liftedWeightLb, repsCompleted);
+}
+
+/**
  * Derive a cycle's training max from a block's stored seed.
  * `cycleIndex` is 0-based: the first cycle of the block equals the seed
  * itself, and each subsequent cycle adds one more increment.

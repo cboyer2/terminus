@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { estimatedMax, rescaleTrainingMaxSeed, roundToNearestFive, trainingMax, trainingMaxSeedFromOneRepMax, workingWeight } from "../calc";
+import {
+  estimatedMax,
+  oneRepMaxFromPerformance,
+  rescaleTrainingMaxSeed,
+  roundToNearestFive,
+  trainingMax,
+  trainingMaxSeedFromOneRepMax,
+  workingWeight,
+} from "../calc";
 
 describe("roundToNearestFive", () => {
   it("rounds down when closer to the lower multiple of 5", () => {
@@ -27,6 +35,18 @@ describe("estimatedMax", () => {
   it("computes the raw formula before rounding", () => {
     // 200 x 1 x 0.0333 + 200 = 206.66 -> rounds to 205.
     expect(estimatedMax(200, 1)).toBe(205);
+  });
+});
+
+describe("oneRepMaxFromPerformance", () => {
+  it("estimates from weight and reps when reps > 1", () => {
+    expect(oneRepMaxFromPerformance(275, 8)).toBe(350);
+  });
+
+  it("returns the weight itself unchanged at reps <= 1 — no estimating inflation", () => {
+    // estimatedMax(300, 1) would return 310 (300 x 1 x 0.0333 + 300, rounded);
+    // reps<=1 means the weight already IS the max, so that formula is skipped.
+    expect(oneRepMaxFromPerformance(300, 1)).toBe(300);
   });
 });
 

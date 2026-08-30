@@ -97,8 +97,12 @@ emphatic about this and calls treating the training max as a strength measure
 one of the biggest beginner mistakes.
 
 **Failing the test** — one or two reps at the training max — means lowering it:
-run the estimated-max formula on what was managed and set the training max to
-85–90% of that.
+run the estimated-max formula on what was managed and re-derive the training
+max at the lift's own already-effective percentage (85–90%, from the Leader
+template or a per-lift override). This has no dedicated UI of its own — it's
+the same "enter maxes" flow used at any other time, just fed the test's
+weight/reps; see PRD §1.9. Beginner has no 7th Week TM test framing in its
+own progression section and uses the Stalled path instead.
 
 ### Session shape — independent of the template
 

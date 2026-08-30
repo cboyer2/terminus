@@ -9,8 +9,9 @@
 
 import { TextField } from "@/components/text-field";
 import { ThemedText } from "@/components/themed-text";
-import { estimatedMax, trainingMaxSeedFromOneRepMax } from "@/generator/calc";
-import { DEFAULT_INCREMENT_LB } from "@/generator/types";
+import { oneRepMaxFromPerformance, trainingMaxSeedFromOneRepMax } from "@/generator/calc";
+import { progressNormal, progressStall } from "@/generator/seed-progression";
+import { DEFAULT_INCREMENT_LB, totalCyclesInModel } from "@/generator/types";
 import type { Lift, LiftKey } from "@/generator/types";
 import { useLifts } from "@/hooks/use-lifts";
 import { usePlan } from "@/hooks/use-plan";
@@ -57,15 +58,117 @@ function SaveButton({ title, onPress, disabled }: { title: string; onPress: () =
   );
 }
 
+/** A single toggleable choice — used for the progression mode (Normal, plus
+ * either Stalled or Failed TM Test depending on the template). Plain RN for
+ * the same reason as SaveButton: this screen has already hit real
+ * native-only bugs with @expo/ui components, so new additions here stay
+ * consistent with what's already proven to work.
+ */
+function SegmentButton({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={[styles.segment, selected && styles.segmentSelected]}>
+      <ThemedText style={[styles.segmentLabel, selected && styles.segmentLabelSelected]}>{label}</ThemedText>
+    </Pressable>
+  );
+}
+
+/** PRD §1.9's progression paths, gated on an existing seed to progress
+ * from. Normal is available on every template. Stalled is Beginner-only —
+ * "back up three cycles" is Beginner's own documented remedy (beginner.md:
+ * "All five remedies begin identically — back up three cycles"), not a
+ * generic mechanic; other templates' own stall guidance is deferred, not
+ * yet built, so this app shouldn't offer it there until it's actually
+ * modelled.
+ *
+ * Failed TM Test was here for Leader/Anchor templates too, but it's gone —
+ * once it stopped asking for a fresh percentage (using the lift's own
+ * already-effective one instead, like everything else on this screen), it
+ * became byte-for-byte the same computation as the "enter a max" form
+ * above: weight+reps -> oneRepMaxFromPerformance -> apply that same
+ * percentage -> overwrite trainingMaxSeed. A second control for the exact
+ * same action was pure duplication, per the owner.
+ *
+ * Normal computes its resulting seed from data already in hand and shows
+ * it before the user confirms — nothing is applied until Confirm is
+ * pressed. Saving preserves every other field on the lift (role,
+ * tmPercentageOverride, increment); only trainingMaxSeed changes.
+ */
+function ProgressSection({
+  existing,
+  cycleCount,
+  isBeginnerModel,
+  onSave,
+}: {
+  existing: Lift;
+  cycleCount: number;
+  isBeginnerModel: boolean;
+  onSave: (lift: Lift) => Promise<void>;
+}) {
+  const [mode, setMode] = useState<"normal" | "stall" | null>(null);
+  const [isProgressing, setIsProgressing] = useState(false);
+
+  const normalSeed = progressNormal(existing.trainingMaxSeed, existing.increment, cycleCount);
+  const stallSeed = progressStall(existing.trainingMaxSeed, existing.increment);
+
+  const applyProgress = useCallback(
+    async (newSeed: number) => {
+      setIsProgressing(true);
+      try {
+        await onSave({ ...existing, trainingMaxSeed: newSeed });
+        setMode(null);
+      } catch (err) {
+        Alert.alert("Couldn't progress", err instanceof Error ? err.message : String(err));
+      } finally {
+        setIsProgressing(false);
+      }
+    },
+    [existing, onSave]
+  );
+
+  return (
+    <View style={styles.progressSection}>
+      <ThemedText style={styles.progressLabel}>Progress</ThemedText>
+      <View style={styles.segmentRow}>
+        <SegmentButton label="Normal" selected={mode === "normal"} onPress={() => setMode(mode === "normal" ? null : "normal")} />
+        {isBeginnerModel && (
+          <SegmentButton label="Stalled" selected={mode === "stall"} onPress={() => setMode(mode === "stall" ? null : "stall")} />
+        )}
+      </View>
+
+      {mode === "normal" && (
+        <>
+          <ThemedText style={styles.progressPreview}>
+            {existing.trainingMaxSeed} lb + {cycleCount} × {existing.increment} lb = {normalSeed} lb
+          </ThemedText>
+          <SaveButton title="Confirm" onPress={() => applyProgress(normalSeed)} disabled={isProgressing} />
+        </>
+      )}
+
+      {mode === "stall" && isBeginnerModel && (
+        <>
+          <ThemedText style={styles.progressPreview}>
+            {existing.trainingMaxSeed} lb − 3 × {existing.increment} lb = {stallSeed} lb
+          </ThemedText>
+          <SaveButton title="Confirm" onPress={() => applyProgress(stallSeed)} disabled={isProgressing} />
+        </>
+      )}
+    </View>
+  );
+}
+
 function LiftRow({
   liftKey,
   existing,
   tmPercentage,
+  cycleCount,
+  isBeginnerModel,
   onSave,
 }: {
   liftKey: LiftKey;
   existing: Lift | undefined;
   tmPercentage: number;
+  cycleCount: number;
+  isBeginnerModel: boolean;
   onSave: (lift: Lift) => Promise<void>;
 }) {
   const [weight, setWeight] = useState("");
@@ -74,14 +177,11 @@ function LiftRow({
 
   const percentage = existing?.tmPercentageOverride ?? tmPercentage;
 
-  // Reps <= 1 means "this weight is my actual max" — the estimating
-  // formula is skipped rather than run with reps=1, which would multiply
-  // the weight by 1.0333 instead of returning it unchanged.
   const oneRepMax = useMemo(() => {
     const weightLb = Number(weight);
     const repsCompleted = Number(reps) || 1;
     if (!weightLb || weightLb <= 0) return null;
-    return repsCompleted <= 1 ? weightLb : estimatedMax(weightLb, repsCompleted);
+    return oneRepMaxFromPerformance(weightLb, repsCompleted);
   }, [weight, reps]);
 
   const seed = oneRepMax !== null ? trainingMaxSeedFromOneRepMax(oneRepMax, percentage) : null;
@@ -126,6 +226,9 @@ function LiftRow({
         </ThemedText>
       )}
       <SaveButton title="Save" onPress={handleSave} disabled={isSaving || seed === null} />
+      {existing && (
+        <ProgressSection existing={existing} cycleCount={cycleCount} isBeginnerModel={isBeginnerModel} onSave={onSave} />
+      )}
     </View>
   );
 }
@@ -166,6 +269,8 @@ export default function MaxesScreen() {
               liftKey={liftKey}
               existing={lifts?.find((l) => l.liftKey === liftKey)}
               tmPercentage={program.tmPercentage}
+              cycleCount={totalCyclesInModel(program.programmingModel)}
+              isBeginnerModel={program.programmingModel === "beginner"}
               onSave={saveLift}
             />
           ))}
@@ -250,5 +355,45 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 17,
     fontWeight: "600",
+  },
+  progressSection: {
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+    paddingTop: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.separator,
+  },
+  progressLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.secondaryLabel,
+    textTransform: "uppercase",
+  },
+  segmentRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  segment: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    borderRadius: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.separator,
+    alignItems: "center",
+  },
+  segmentSelected: {
+    backgroundColor: colors.systemBlue,
+    borderColor: colors.systemBlue,
+  },
+  segmentLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  segmentLabelSelected: {
+    color: "#fff",
+  },
+  progressPreview: {
+    fontSize: 14,
+    color: colors.secondaryLabel,
   },
 });

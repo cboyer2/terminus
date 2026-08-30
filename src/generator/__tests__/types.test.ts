@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveByRole } from "../types";
+import { resolveByRole, totalCyclesInModel } from "../types";
 
 describe("resolveByRole", () => {
   it("returns a plain value unchanged, regardless of role", () => {
@@ -25,5 +25,14 @@ describe("resolveByRole", () => {
     // Only an object with a "default" key is treated as role-keyed.
     const field = { min: 10, max: 20 };
     expect(resolveByRole(field, "leader")).toEqual({ min: 10, max: 20 });
+  });
+});
+
+describe("totalCyclesInModel", () => {
+  it("sums every phase's cycles", () => {
+    expect(totalCyclesInModel("beginner")).toBe(1);
+    expect(totalCyclesInModel("2+1")).toBe(3);
+    expect(totalCyclesInModel("2+2")).toBe(4);
+    expect(totalCyclesInModel("3+2")).toBe(5);
   });
 });

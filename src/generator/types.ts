@@ -109,6 +109,19 @@ export const PROGRAMMING_MODELS: Record<ProgrammingModelId, ProgrammingPhase[]> 
   ],
 };
 
+/**
+ * The total number of cycles a programming model runs — every phase's
+ * `cycles` summed. `cycles.ts`'s `trainingMax(seed, increment, cycleIndex)`
+ * already treats each cycle within a block as one more increment (cycle 0
+ * = the seed itself, cycle 1 = seed+increment, ...), so a block with `n`
+ * total cycles runs through cycle indices 0 through n-1. Normal progression
+ * to the *next* block continues that same rate rather than resetting it —
+ * see seed-progression.ts's `progressNormal`.
+ */
+export function totalCyclesInModel(programmingModel: ProgrammingModelId): number {
+  return PROGRAMMING_MODELS[programmingModel].reduce((sum, phase) => sum + phase.cycles, 0);
+}
+
 // ---------------------------------------------------------------------------
 // Templates
 // ---------------------------------------------------------------------------
