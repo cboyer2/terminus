@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { generatePlan } from "../cycles";
-import type { Lift, LiftKey, PlannedSet, Program } from "../types";
+import type { AssistanceTarget, JumpsOrThrows, Lift, LiftKey, PlannedSet, Program, WarmupExercise } from "../types";
 
 /**
  * Frozen fixture for the Beginner template, hand-checked against
@@ -111,6 +111,74 @@ function expectedSupplemental(liftKey: LiftKey, step: number): PlannedSet[] {
   return Array.from({ length: 5 }, () => ({ tmPercentage, workingWeight, reps: 5, isPrSet: false }));
 }
 
+// docs/plan-structure.md "Part 3 — Warm-up sets": 40% x5, 50% x5, 60% x3 off
+// the lift's own training max, fixed regardless of template, progression
+// step, or 7th Week Protocol variant — so these three weights per lift cover
+// every session in this fixture, main work and the closing TM test alike.
+const warmupWeightsByLift: Record<LiftKey, [number, number, number]> = {
+  squat: [160, 200, 240],
+  bench: [80, 100, 120],
+  deadlift: [200, 250, 300],
+  press: [120, 150, 180],
+};
+
+function expectedWarmupSets(liftKey: LiftKey): PlannedSet[] {
+  const [p40, p50, p60] = warmupWeightsByLift[liftKey];
+  return [
+    { tmPercentage: 0.4, workingWeight: p40, reps: 5, isPrSet: false },
+    { tmPercentage: 0.5, workingWeight: p50, reps: 5, isPrSet: false },
+    { tmPercentage: 0.6, workingWeight: p60, reps: 3, isPrSet: false },
+  ];
+}
+
+// docs/templates/beginner.md "Assistance" / "Jumps" / "Warm-up" — hand-
+// verified per-session prescriptions, identical for every main-work session
+// (per-workout, not per-lift, so checked at the session level below).
+const BEGINNER_ASSISTANCE: AssistanceTarget[] = [
+  { category: "squat/hip-hinge", exerciseOptions: ["Kettlebell swing or snatch", "Dumbbell or bodyweight squat"], totalReps: { min: 25, max: 100 } },
+  { category: "push", exerciseOptions: ["Push-up", "Dip"], totalReps: { min: 25, max: 100 } },
+  { category: "pull", exerciseOptions: ["Chin-up", "Pull-up", "Inverted row"], totalReps: { min: 25, max: 50 } },
+  { category: "core", exerciseOptions: ["Ab wheel", "Hanging leg raise"], totalReps: { min: 25, max: 50 } },
+];
+
+const BEGINNER_JUMPS_OR_THROWS: JumpsOrThrows = {
+  totalReps: { min: 10, max: 20 },
+  guidance: "Box jumps or standing long jumps; total-body emphasis and a strong landing. Not depth jumps.",
+};
+
+const BEGINNER_WARMUP_CIRCUIT: WarmupExercise[] = [
+  { name: "Jumping jacks", sets: 3, reps: "25" },
+  { name: "Bodyweight squat", sets: 3, reps: "10" },
+  { name: "Mountain climbers", sets: 3, reps: "10 per leg" },
+];
+
+// docs/plan-structure.md "Assistance and conditioning" / "Session shape" —
+// fixed across every 7th Week Protocol variant, independent of template.
+const SEVENTH_WEEK_ASSISTANCE: AssistanceTarget[] = [
+  { category: "push", exerciseOptions: [], totalReps: { min: 25, max: 50 } },
+  { category: "pull", exerciseOptions: [], totalReps: { min: 25, max: 50 } },
+  { category: "single-leg-core", exerciseOptions: [], totalReps: { min: 25, max: 50 } },
+];
+
+const SEVENTH_WEEK_JUMPS_OR_THROWS: JumpsOrThrows = {
+  totalReps: { min: 10, max: 10 },
+  guidance: "Any jump or throw variation.",
+};
+
+// Joe DeFranco's "Agile 8" — the app's fallback warm-up circuit for the 7th
+// Week Protocol, which never has a printed circuit of its own regardless of
+// template (unlike Beginner's own main-work sessions, which do).
+const AGILE_8: WarmupExercise[] = [
+  { name: "IT band foam roll", sets: 1, reps: "10-15 passes per leg" },
+  { name: "Adductor foam roll", sets: 1, reps: "10-15 passes per leg" },
+  { name: "Glute/piriformis release (lacrosse ball or PVC pipe)", sets: 1, reps: "30 seconds per side" },
+  { name: "Rollover into V-sit", sets: 1, reps: "10" },
+  { name: "Fire hydrant circles", sets: 1, reps: "10 forward and 10 backward per leg" },
+  { name: "Mountain climbers", sets: 1, reps: "10" },
+  { name: "Groiners", sets: 1, reps: "10, holding the last rep for 10 seconds" },
+  { name: "Hip flexor stretch", sets: 3, reps: "10 seconds per leg — complete one leg before switching" },
+];
+
 describe("generatePlan — beginner template fixture", () => {
   const plan = generatePlan(lifts, program);
 
@@ -127,9 +195,13 @@ describe("generatePlan — beginner template fixture", () => {
         expect(session.sessionNumber).toBe(step * 2 + workoutIndex + 1);
         expect(session.cycleNumber).toBe(1);
         expect(session.lifts.map((l) => l.liftKey)).toEqual(liftKeys);
+        expect(session.assistance).toEqual(BEGINNER_ASSISTANCE);
+        expect(session.jumpsOrThrows).toEqual(BEGINNER_JUMPS_OR_THROWS);
+        expect(session.warmupCircuit).toEqual(BEGINNER_WARMUP_CIRCUIT);
 
         for (const entry of session.lifts) {
           expect(entry.step).toEqual({ kind: "main", index: step });
+          expect(entry.warmupSets).toEqual(expectedWarmupSets(entry.liftKey));
           expect(entry.mainWork).toEqual(expectedMainWork(entry.liftKey, step));
           expect(entry.supplemental).toEqual(expectedSupplemental(entry.liftKey, step));
         }
@@ -145,6 +217,11 @@ describe("generatePlan — beginner template fixture", () => {
     expect(deadliftPressSession.sessionNumber).toBe(9);
     for (const session of [squatSession, benchSession, deadliftPressSession]) {
       expect(session.cycleNumber).toBe(1);
+      expect(session.assistance).toEqual(SEVENTH_WEEK_ASSISTANCE);
+      expect(session.jumpsOrThrows).toEqual(SEVENTH_WEEK_JUMPS_OR_THROWS);
+      // The 7th Week Protocol never reuses a template's own printed
+      // circuit — Beginner's own (jumping jacks, etc.) does NOT carry over.
+      expect(session.warmupCircuit).toEqual(AGILE_8);
     }
 
     expect(squatSession.lifts.map((l) => l.liftKey)).toEqual(["squat"]);
@@ -184,7 +261,67 @@ describe("generatePlan — beginner template fixture", () => {
 
     for (const entry of allTmTestEntries) {
       expect(entry.step).toEqual({ kind: "tmTest" });
+      expect(entry.warmupSets).toEqual(expectedWarmupSets(entry.liftKey));
       expect(entry.supplemental).toEqual([]);
+    }
+  });
+});
+
+describe("generatePlan — beginner template's per-lift options", () => {
+  it("supplementalSourceByLift overrides the percentage-derived FSL/SSL split", () => {
+    // Squat (90%, normally FSL) forced to SSL; deadlift (85%, normally SSL)
+    // forced to FSL — the reverse of each lift's own default.
+    const overriddenProgram: Program = {
+      ...program,
+      options: { supplementalSourceByLift: { squat: "secondSetLast", deadlift: "firstSetLast" } },
+    };
+    const plan = generatePlan(lifts, overriddenProgram);
+    const step0Sessions = plan.sessions.slice(0, 2);
+    const byLift = new Map(step0Sessions.flatMap((s) => s.lifts).map((e) => [e.liftKey, e]));
+
+    // Squat's own step-0 sets are 70%x280, 80%x320 — SSL means the second (0.8/320).
+    expect(byLift.get("squat")!.supplemental[0]).toEqual({ tmPercentage: 0.8, workingWeight: 320, reps: 5, isPrSet: false });
+    // Deadlift's own step-0 sets are 70%x350, 80%x400 — FSL means the first (0.7/350).
+    expect(byLift.get("deadlift")!.supplemental[0]).toEqual({ tmPercentage: 0.7, workingWeight: 350, reps: 5, isPrSet: false });
+    // Untouched lifts keep their percentage-derived default (bench: FSL).
+    expect(byLift.get("bench")!.supplemental[0]).toEqual({ tmPercentage: 0.7, workingWeight: 140, reps: 5, isPrSet: false });
+  });
+
+  it("supplementalSetCountByLift overrides the default 5 sets, per lift", () => {
+    // docs/templates/beginner.md "Stall": remedy 3, "7-10 x 5" — reps stay 5.
+    const overriddenProgram: Program = {
+      ...program,
+      options: { supplementalSetCountByLift: { squat: 8 } },
+    };
+    const plan = generatePlan(lifts, overriddenProgram);
+    const step0Sessions = plan.sessions.slice(0, 2);
+    const byLift = new Map(step0Sessions.flatMap((s) => s.lifts).map((e) => [e.liftKey, e]));
+
+    expect(byLift.get("squat")!.supplemental).toHaveLength(8);
+    expect(byLift.get("squat")!.supplemental[0].reps).toBe(5);
+    // Untouched lifts keep the default 5.
+    expect(byLift.get("bench")!.supplemental).toHaveLength(5);
+  });
+
+  it("prSetOnFinalSetByLift marks only the final main-work set, per lift, every progression step", () => {
+    // docs/templates/beginner.md "Stall": remedy 2, "push the last set for a PR or goal".
+    const overriddenProgram: Program = {
+      ...program,
+      options: { prSetOnFinalSetByLift: { squat: true } },
+    };
+    const plan = generatePlan(lifts, overriddenProgram);
+    const mainSessions = plan.sessions.slice(0, 6);
+
+    for (const session of mainSessions) {
+      for (const entry of session.lifts) {
+        const finalSet = entry.mainWork[entry.mainWork.length - 1];
+        const otherSets = entry.mainWork.slice(0, -1);
+        const expectedFinalPrSet = entry.liftKey === "squat";
+        expect(finalSet.isPrSet).toBe(expectedFinalPrSet);
+        for (const set of otherSets) {
+          expect(set.isPrSet).toBe(false);
+        }
+      }
     }
   });
 });

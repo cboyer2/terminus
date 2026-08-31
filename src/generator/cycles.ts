@@ -5,6 +5,8 @@
 import { trainingMax, workingWeight } from "./calc";
 import { getTemplate } from "./templates";
 import {
+  type AssistanceTarget,
+  type JumpsOrThrows,
   type Lift,
   type LiftKey,
   type MainWorkBase,
@@ -19,12 +21,38 @@ import {
   type SupplementalPrescription,
   type Template,
   type TemplateRole,
+  type WarmupExercise,
   PROGRAMMING_MODELS,
   resolveByRole,
 } from "./types";
 
 function effectivePercentage(lift: Lift, program: Program): number {
   return lift.tmPercentageOverride ?? program.tmPercentage;
+}
+
+/**
+ * Joe DeFranco's "Agile 8" — the owner's chosen default warm-up/mobility
+ * circuit for whenever a role has no printed circuit of its own.
+ * `bbb-original` and `original-531` both declare an empty `warmup` for
+ * every role today, and the 7th Week Protocol never has one either
+ * (independent of whichever template is running the surrounding phase) —
+ * see `resolveWarmup` below.
+ */
+const AGILE_8: WarmupExercise[] = [
+  { name: "IT band foam roll", sets: 1, reps: "10-15 passes per leg" },
+  { name: "Adductor foam roll", sets: 1, reps: "10-15 passes per leg" },
+  { name: "Glute/piriformis release (lacrosse ball or PVC pipe)", sets: 1, reps: "30 seconds per side" },
+  { name: "Rollover into V-sit", sets: 1, reps: "10" },
+  { name: "Fire hydrant circles", sets: 1, reps: "10 forward and 10 backward per leg" },
+  { name: "Mountain climbers", sets: 1, reps: "10" },
+  { name: "Groiners", sets: 1, reps: "10, holding the last rep for 10 seconds" },
+  { name: "Hip flexor stretch", sets: 3, reps: "10 seconds per leg — complete one leg before switching" },
+];
+
+/** Falls back to the Agile 8 whenever a template's own role-resolved
+ * warmup circuit is empty. */
+function resolveWarmup(circuit: WarmupExercise[]): WarmupExercise[] {
+  return circuit.length > 0 ? circuit : AGILE_8;
 }
 
 // docs/templates/boring-but-big.md, bbb-original "Options": "Supplemental
@@ -55,19 +83,47 @@ function supplementalBasisLiftKey(liftKey: LiftKey, options: Record<string, unkn
  * docs/templates/beginner.md "Options"). The midpoint of the template's
  * declared range is the split point. A template with a fixed percentage, or
  * a plain (non-percentage-keyed) supplemental, never reaches the branch.
+ *
+ * `program.options.supplementalSourceByLift` overrides the derived default
+ * per lift — Beginner's stall remedy 5, "switch to SSL" (docs/templates/
+ * beginner.md "Stall"). A lift with no override falls back to the
+ * percentage-derived choice, same as before this option existed.
  */
-function resolveSupplemental(supplemental: Supplemental, percentage: number, template: Template): "none" | SupplementalPrescription {
+function resolveSupplemental(
+  supplemental: Supplemental,
+  percentage: number,
+  template: Template,
+  liftKey: LiftKey,
+  options: Record<string, unknown>
+): "none" | SupplementalPrescription {
   if (supplemental === "none") {
     return "none";
   }
   if ("sets" in supplemental) {
     return supplemental;
   }
+  const sourceOverrides = options.supplementalSourceByLift as Partial<Record<LiftKey, "firstSetLast" | "secondSetLast">> | undefined;
+  const sourceOverride = sourceOverrides?.[liftKey];
+  if (sourceOverride === "firstSetLast") return supplemental.atHigherTmPercentage;
+  if (sourceOverride === "secondSetLast") return supplemental.atLowerTmPercentage;
   if (template.tmPercentage.kind !== "range") {
     throw new Error(`${template.id}: percentage-keyed supplemental requires a percentage range`);
   }
   const midpoint = (template.tmPercentage.min + template.tmPercentage.max) / 2;
   return percentage <= midpoint ? supplemental.atLowerTmPercentage : supplemental.atHigherTmPercentage;
+}
+
+/**
+ * Beginner's stall remedy 2, "push the last set for a PR or goal" (docs/
+ * templates/beginner.md "Stall") — forces the final set of a progression
+ * step's main work to a PR set, per lift via
+ * `program.options.prSetOnFinalSetByLift`. A copy, not a mutation: the
+ * underlying MainWorkSet[] is shared template data, reused across every
+ * cycle and every lift that doesn't have this option on.
+ */
+function applyFinalSetPr(weekSets: MainWorkSet[]): MainWorkSet[] {
+  if (weekSets.length === 0) return weekSets;
+  return weekSets.map((set, i) => (i === weekSets.length - 1 ? { ...set, isPrSet: true } : set));
 }
 
 /**
@@ -121,6 +177,27 @@ function requireLift(lifts: Map<LiftKey, Lift>, liftKey: LiftKey): Lift {
   return lift;
 }
 
+/**
+ * Fixed across every template, before main work only — see
+ * docs/plan-structure.md "Warm-up sets". Applies identically to a regular
+ * main-work session and a 7th Week Protocol session; only the training max
+ * it's a percentage of ever changes.
+ */
+const WARMUP_SET_SCHEME: { tmPercentage: number; reps: number }[] = [
+  { tmPercentage: 0.4, reps: 5 },
+  { tmPercentage: 0.5, reps: 5 },
+  { tmPercentage: 0.6, reps: 3 },
+];
+
+function buildWarmupSets(trainingMaxLb: number): PlannedSet[] {
+  return WARMUP_SET_SCHEME.map(({ tmPercentage, reps }) => ({
+    tmPercentage,
+    workingWeight: workingWeight(trainingMaxLb, tmPercentage),
+    reps,
+    isPrSet: false,
+  }));
+}
+
 function buildPlannedSets(scheme: MainWorkSet[], trainingMaxLb: number): PlannedSet[] {
   return scheme.map((set) => ({
     tmPercentage: set.tmPercentage,
@@ -158,6 +235,12 @@ export function buildMainCycleSessions(
   const mainWorkScheme = resolveMainWorkScheme(template.mainWorkScheme, role, program.options);
   const supplemental = resolveByRole(template.supplemental, role);
 
+  // Per-workout, not per-progression-step — identical for every session
+  // this call builds, so resolved once rather than inside buildLiftEntry.
+  const assistance = resolveByRole(template.assistance, role);
+  const jumpsOrThrows = resolveByRole(template.jumpsOrThrows, role);
+  const warmupCircuit = resolveWarmup(resolveByRole(template.warmup, role));
+
   const sessions: Session[] = [];
   let sessionNumber = startingSessionNumber;
 
@@ -166,17 +249,22 @@ export function buildMainCycleSessions(
     const lift = requireLift(lifts, liftKey);
     const tm = trainingMax(lift.trainingMaxSeed, lift.increment, cycleIndex);
     const percentage = effectivePercentage(lift, program);
-    const prescription = resolveSupplemental(supplemental, percentage, template);
+    const prescription = resolveSupplemental(supplemental, percentage, template, liftKey, program.options);
+
+    const prSetOverrides = program.options.prSetOnFinalSetByLift as Partial<Record<LiftKey, boolean>> | undefined;
+    const effectiveWeekSets = prSetOverrides?.[liftKey] ? applyFinalSetPr(weekSets) : weekSets;
 
     const supplementalLiftKey = supplementalBasisLiftKey(liftKey, program.options);
 
     let supplementalSets: PlannedSet[] = [];
     if (prescription !== "none") {
-      const basisPercentage = supplementalBasisPercentage(weekSets, prescription, liftKey, program.options);
+      const basisPercentage = supplementalBasisPercentage(effectiveWeekSets, prescription, liftKey, program.options);
       const supplementalLift = supplementalLiftKey === liftKey ? lift : requireLift(lifts, supplementalLiftKey);
       const supplementalTm = trainingMax(supplementalLift.trainingMaxSeed, supplementalLift.increment, cycleIndex);
       const supplementalWeight = workingWeight(supplementalTm, basisPercentage);
-      supplementalSets = Array.from({ length: prescription.sets }, () => ({
+      const setCountOverrides = program.options.supplementalSetCountByLift as Partial<Record<LiftKey, number>> | undefined;
+      const effectiveSets = setCountOverrides?.[liftKey] ?? prescription.sets;
+      supplementalSets = Array.from({ length: effectiveSets }, () => ({
         tmPercentage: basisPercentage,
         workingWeight: supplementalWeight,
         reps: prescription.reps,
@@ -187,7 +275,8 @@ export function buildMainCycleSessions(
     return {
       liftKey,
       step: { kind: "main", index: step },
-      mainWork: buildPlannedSets(weekSets, tm),
+      warmupSets: buildWarmupSets(tm),
+      mainWork: buildPlannedSets(effectiveWeekSets, tm),
       supplemental: supplementalSets,
       supplementalLiftKey,
     };
@@ -200,7 +289,7 @@ export function buildMainCycleSessions(
     for (let step = 0; step < mainWorkScheme.length; step++) {
       for (const workout of shape.workouts) {
         const liftEntries = workout.liftKeys.map((liftKey) => buildLiftEntry(liftKey, step as 0 | 1 | 2));
-        sessions.push({ sessionNumber: sessionNumber++, cycleNumber, lifts: liftEntries });
+        sessions.push({ sessionNumber: sessionNumber++, cycleNumber, lifts: liftEntries, assistance, jumpsOrThrows, warmupCircuit });
       }
     }
   } else {
@@ -220,7 +309,7 @@ export function buildMainCycleSessions(
           appearanceCount.set(liftKey, step + 1);
           return buildLiftEntry(liftKey, step);
         });
-        sessions.push({ sessionNumber: sessionNumber++, cycleNumber, lifts: liftEntries });
+        sessions.push({ sessionNumber: sessionNumber++, cycleNumber, lifts: liftEntries, assistance, jumpsOrThrows, warmupCircuit });
       }
     }
   }
@@ -233,6 +322,26 @@ export function buildMainCycleSessions(
  * independent of the template". Two days is schema-legal but unreached: no
  * template yet supports it.
  */
+/**
+ * docs/plan-structure.md "Assistance and conditioning" — fixed across every
+ * 7th Week Protocol variant (deload, TM test), independent of whichever
+ * template is running the surrounding phase. No specific exercises are
+ * named in the source for this table, unlike a template's own assistance
+ * choices, so `exerciseOptions` is left empty rather than invented.
+ */
+const SEVENTH_WEEK_ASSISTANCE: AssistanceTarget[] = [
+  { category: "push", exerciseOptions: [], totalReps: { min: 25, max: 50 } },
+  { category: "pull", exerciseOptions: [], totalReps: { min: 25, max: 50 } },
+  { category: "single-leg-core", exerciseOptions: [], totalReps: { min: 25, max: 50 } },
+];
+
+/** docs/plan-structure.md "Session shape — independent of the template":
+ * "jumps/throws (10 total)". No specific variation is named for this table. */
+const SEVENTH_WEEK_JUMPS_OR_THROWS: JumpsOrThrows = {
+  totalReps: { min: 10, max: 10 },
+  guidance: "Any jump or throw variation.",
+};
+
 const SEVENTH_WEEK_LAYOUT: Record<2 | 3 | 4, LiftKey[][]> = {
   4: [["squat"], ["bench"], ["deadlift"], ["press"]],
   3: [["squat"], ["bench"], ["deadlift", "press"]],
@@ -319,12 +428,20 @@ function buildSeventhWeekSessions(
       return {
         liftKey,
         step: { kind: stepKind },
+        warmupSets: buildWarmupSets(tm),
         mainWork: buildSeventhWeekPlannedSets(schemeForPercentage(percentage), tm),
         supplemental: [],
         supplementalLiftKey: liftKey,
       };
     });
-    return { sessionNumber: sessionNumber++, cycleNumber, lifts: liftEntries };
+    return {
+      sessionNumber: sessionNumber++,
+      cycleNumber,
+      lifts: liftEntries,
+      assistance: SEVENTH_WEEK_ASSISTANCE,
+      jumpsOrThrows: SEVENTH_WEEK_JUMPS_OR_THROWS,
+      warmupCircuit: AGILE_8,
+    };
   });
 
   return { sessions, nextSessionNumber: sessionNumber };

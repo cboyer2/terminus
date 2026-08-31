@@ -266,7 +266,8 @@ lifts
   training_max_seed_lb    numeric
   tm_percentage_override  numeric, 0–1, nullable — overrides the program
                           default for this lift only
-  increment_lb            numeric, lift-level default (template may override)
+  increment_lb            numeric, set once at lift creation from the
+                          standard lift-level default, editable per lift
   unique (user_id, lift_key)
 
 program
@@ -325,8 +326,15 @@ Six things worth noting about that shape:
   is computed from it at setup and the 1RM discarded. It is derivable as
   `seed ÷ effectivePercentage(lift)`, and after a few cycles of progression
   that derived figure is more current than the number originally typed.
-- **`role` and `increment_lb` exist because the generator needs them.** The
-  increment lives on the template with this column as the fallback.
+- **`role` and `increment_lb` exist because the generator needs them.**
+  Unlike `tmPercentage`, the increment is not re-resolved against a template
+  on every plan generation — `cycles.ts` reads `lift.increment` directly, a
+  concrete value decided once, when the lift is first saved, from the same
+  standard lift-level default regardless of template. Beginner additionally
+  lets squat or deadlift be overridden down to 5 lb from the Templates tab,
+  exactly like `tm_percentage_override` — the book's own alternative for a
+  lift you're weak in (docs/templates/beginner.md "Progression"), not a
+  different default for the template as a whole.
 - **`program` is singular and keyed by `user_id`.** A plural table with its
   own `id` implies you can hold several, which is the door history walks back
   in through. One row, enforced by the schema.

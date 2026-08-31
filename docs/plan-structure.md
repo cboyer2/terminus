@@ -143,6 +143,29 @@ Useful context for the setup flow's percentage step:
   `tm_percentage_override`.
 - Training maxes will need resetting frequently, especially press and bench.
 
+## Part 3 — Warm-up sets
+
+Before main work only — never before supplemental, and not a template
+option. Every template runs the identical ramp:
+
+| Set | Percentage | Reps |
+|---|---|---|
+| 1 | 40% | 5 |
+| 2 | 50% | 5 |
+| 3 | 60% | 3 |
+
+Same basis as every other working weight — **percentage of the training
+max**, not the 1RM, rounded the same way (docs/ARCHITECTURE.md §7). Computed
+per lift, off that lift's own training max for the session it appears in —
+the same training max its main work for that session uses.
+
+**Applies before 7th Week Protocol sessions too.** The deload/TM
+test/PR test's own 70/80/90% climb to the top set (Part 2's "three variants"
+table above) is a different thing — the book's own "warm-up percentages" for
+*that* table — and doesn't replace this ramp; a 7th Week Protocol session
+still opens with 40/50/60% before its own main work, same as any other
+session.
+
 ---
 
 ## Resolved
@@ -175,14 +198,35 @@ Useful context for the setup flow's percentage step:
    template availability the way the Leader's and Anchor's day-count pickers
    are, since it's an independent choice with its own complete layout table
    for 2, 3, and 4 days.
+4. **The 40/50/60% warm-up ramp applies before every main-work session, 7th
+   Week Protocol included** — the 7th week's own 70/80/90% climb to its top
+   set is a separate thing the book itself calls "warm-up percentages" for
+   that table specifically, not a substitute for the ramp every other
+   session gets. Fixed across every template; not a template field.
+5. **Assistance, jumps/throws, and the warm-up/mobility circuit are shown
+   once per phase view, not once per session.** All three are per-workout
+   fields the book prescribes identically across every session within one
+   role (Leader, Anchor, or a 7th Week Protocol occurrence) — repeating them
+   on every SessionCard would restate the same content on every one of a
+   phase's sessions. The cheat sheet shows them once per calendar-week page
+   instead (a page's sessions are always homogeneous in role/kind), keyed
+   off `Session.assistance`/`jumpsOrThrows`/`warmupCircuit` rather than a
+   new phase-level concept in the generator's own output.
+6. **Joe DeFranco's "Agile 8" is the fallback warm-up/mobility circuit**
+   wherever a role has no printed circuit of its own — the owner's own
+   standing choice, not from the book. Applies to `bbb-original` and
+   `original-531` (both declare an empty `warmup` for every role today) and
+   to the 7th Week Protocol (which never has a printed circuit, independent
+   of whichever template is running the surrounding phase, the same way its
+   assistance and jumps/throws tables are independent of the template).
 
 ## Recorded, not gaps
 
-4. **7th week weeks are structurally different**, not just differently
+7. **7th week weeks are structurally different**, not just differently
    weighted: no supplemental, limited assistance, own session layout. Confirms
    that a discriminated union of week kinds is required rather than optional.
-5. **The PR test is excluded** by the decision to always close with a TM test.
+8. **The PR test is excluded** by the decision to always close with a TM test.
    A deliberate simplification of the book, which permits either. Recorded so
    it isn't mistaken for an oversight.
-6. **Optional deload after any cycle** is not modelled and shouldn't be — with
+9. **Optional deload after any cycle** is not modelled and shouldn't be — with
    no position tracking, an on-demand deload has nowhere to live.

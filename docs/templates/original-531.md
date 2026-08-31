@@ -29,8 +29,21 @@ the high end regardless.
 
 ### Pairings named in the source
 
+- **Original 5/3/1 (Leader) → Original 5/3/1 (Anchor)** — self-pairing. The
+  book states this directly for the family's Leader-into-Anchor transitions
+  ("Once you've done two to three cycles of this, you go back to the normal
+  5/3/1 program"; "This would be done for two to three cycles and then the
+  original 5/3/1 program would be done"), and role-keyed assistance (higher
+  for the first two to three cycles, lower for the final two to three, main
+  work/jumps/conditioning unchanged) is exactly what makes one template
+  record able to serve as its own Anchor — see docs/ARCHITECTURE.md
+  "Role-keyed fields". `original-531`'s `compatibleAnchorIds` is `[
+  "original-531" ]` for this reason.
 - **5/3/1 Widowmaker (Leader) → Original 5/3/1 (Anchor)** is described as the
-  closest variation to the original program.
+  closest variation to the original program ("You would perform 2-3 cycles
+  of 5/3/1 Widowmaker (Leader) followed by the Original 5/3/1 program
+  (Anchor)"). Widowmaker itself isn't written yet, so this pairing isn't
+  reachable in the app until it is.
 - Original 5/3/1 appears on Boring But Big's list of permitted Anchors.
 
 **Resolved:** the training max percentage is selectable — **80%, 85%, or

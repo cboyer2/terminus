@@ -1,17 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { buildMainCycleSessions, liftsByKey } from "../cycles";
+import { buildMainCycleSessions, generatePlan, liftsByKey } from "../cycles";
 import { original531Template } from "../templates/original-531";
-import type { Lift, Program } from "../types";
+import type { Lift, Program, Session } from "../types";
 
 /**
  * Frozen fixture for original-531, hand-checked against
  * docs/templates/original-531.md's canonical main-work table (in turn
- * hand-verified against "5/3/1 Forever" p.165). Tested at the cycle level
- * via buildMainCycleSessions rather than generatePlan(): original-531 is
- * bbb-original's only assigned compatible anchor, but a full Leader->Anchor
- * plan still isn't buildable until the deload week (between phases) is
- * implemented — see cycles.ts's module comment.
+ * hand-verified against "5/3/1 Forever" p.165). Most of this file tests at
+ * the cycle level via buildMainCycleSessions rather than generatePlan() —
+ * a self-contained way to check one role's output without needing a full
+ * plan-shaped program; the self-pairing describe block at the end does
+ * exercise generatePlan() directly, since it's specifically checking the
+ * Leader->Anchor transition.
  *
  * Seeds are multiples of 100 for cycle 1 (cycleIndex 0), so weights land on
  * an exact 5 lb mark with no rounding to obscure a wrong percentage. Cycle
@@ -117,7 +118,76 @@ describe("original-531 — main work", () => {
   it("main work is unchanged between Leader and Anchor use — only assistance is role-keyed", () => {
     const leaderRun = buildMainCycleSessions(original531Template, "leader", liftMap, program, 1, 0, 1);
     const anchorRun = buildMainCycleSessions(original531Template, "anchor", liftMap, program, 1, 0, 1);
-    expect(anchorRun.sessions).toEqual(leaderRun.sessions);
+
+    // jumpsOrThrows and warmupCircuit aren't role-keyed on this template
+    // either (only assistance is — original-531.ts), so everything but
+    // assistance itself should be identical between the two runs.
+    const omitAssistance = (sessions: Session[]) => sessions.map(({ assistance: _assistance, ...rest }) => rest);
+    expect(omitAssistance(anchorRun.sessions)).toEqual(omitAssistance(leaderRun.sessions));
+
+    expect(leaderRun.sessions[0].assistance).not.toEqual(anchorRun.sessions[0].assistance);
+
+    // original-531.ts's own printed values (docs/templates/original-531.md
+    // "Assistance — role-keyed").
+    expect(leaderRun.sessions[0].assistance).toEqual([
+      { category: "push", exerciseOptions: ["Dip", "Push-up", "Overhead triceps extension"], totalReps: { min: 100, max: 100 } },
+      { category: "pull", exerciseOptions: ["Row", "Chin-up"], totalReps: { min: 100, max: 100 } },
+      { category: "single-leg-core", exerciseOptions: ["Ab wheel", "Hanging leg raise", "Lunge"], totalReps: { min: 100, max: 100 } },
+    ]);
+    expect(anchorRun.sessions[0].assistance).toEqual([
+      { category: "push", exerciseOptions: ["Dip", "Push-up", "Overhead triceps extension"], totalReps: { min: 50, max: 75 } },
+      { category: "pull", exerciseOptions: ["Row", "Chin-up"], totalReps: { min: 50, max: 75 } },
+      { category: "single-leg-core", exerciseOptions: ["Ab wheel", "Hanging leg raise", "Lunge"], totalReps: { min: 50, max: 75 } },
+    ]);
+  });
+
+  it("falls back to the Agile 8 for warmupCircuit — this template prints no circuit of its own", () => {
+    const leaderRun = buildMainCycleSessions(original531Template, "leader", liftMap, program, 1, 0, 1);
+    expect(leaderRun.sessions[0].warmupCircuit.length).toBeGreaterThan(0);
+    expect(leaderRun.sessions[0].warmupCircuit[0]).toEqual({ name: "IT band foam roll", sets: 1, reps: "10-15 passes per leg" });
+  });
+});
+
+describe("original-531 — self-pairing as Leader and Anchor", () => {
+  // docs/templates/original-531.md "Pairings named in the source": the
+  // book's own answer to running Original 5/3/1 as both a Leader and an
+  // Anchor is this template feeding into itself. A 2+1 program with
+  // original-531 as both leaderTemplateId and anchorTemplateId must
+  // therefore generate a full plan end to end, not dead-end at setup.
+  const selfPairedProgram: Program = {
+    ...program,
+    anchorTemplateId: "original-531",
+    deloadTrainingDays: 4,
+  };
+
+  it("generates a full plan without throwing", () => {
+    expect(() => generatePlan(lifts, selfPairedProgram)).not.toThrow();
+  });
+
+  it("role-keys assistance between the Leader and Anchor cycles — same template, different volume", () => {
+    const plan = generatePlan(lifts, selfPairedProgram);
+    const leaderMainSessions = plan.sessions.filter((s) => s.cycleNumber <= 2 && s.lifts[0]?.step.kind === "main");
+    const anchorMainSessions = plan.sessions.filter((s) => s.cycleNumber === 3 && s.lifts[0]?.step.kind === "main");
+
+    expect(leaderMainSessions.length).toBeGreaterThan(0);
+    expect(anchorMainSessions.length).toBeGreaterThan(0);
+    expect(leaderMainSessions[0].assistance).toEqual([
+      { category: "push", exerciseOptions: ["Dip", "Push-up", "Overhead triceps extension"], totalReps: { min: 100, max: 100 } },
+      { category: "pull", exerciseOptions: ["Row", "Chin-up"], totalReps: { min: 100, max: 100 } },
+      { category: "single-leg-core", exerciseOptions: ["Ab wheel", "Hanging leg raise", "Lunge"], totalReps: { min: 100, max: 100 } },
+    ]);
+    expect(anchorMainSessions[0].assistance).toEqual([
+      { category: "push", exerciseOptions: ["Dip", "Push-up", "Overhead triceps extension"], totalReps: { min: 50, max: 75 } },
+      { category: "pull", exerciseOptions: ["Row", "Chin-up"], totalReps: { min: 50, max: 75 } },
+      { category: "single-leg-core", exerciseOptions: ["Ab wheel", "Hanging leg raise", "Lunge"], totalReps: { min: 50, max: 75 } },
+    ]);
+
+    // Main work percentages are unchanged between the two phases — only
+    // assistance differs (docs/templates/original-531.md "What the family
+    // shares").
+    const leaderSquat = leaderMainSessions.find((s) => s.lifts[0].liftKey === "squat")!.lifts[0].mainWork;
+    const anchorSquat = anchorMainSessions.find((s) => s.lifts[0].liftKey === "squat")!.lifts[0].mainWork;
+    expect(anchorSquat.map((s) => s.tmPercentage)).toEqual(leaderSquat.map((s) => s.tmPercentage));
   });
 });
 

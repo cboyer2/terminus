@@ -43,9 +43,15 @@ export interface Lift {
 }
 
 /**
- * The lift-level default increment (PRD §1.9) — a template may override this
- * (e.g. Beginner drops squat/deadlift to 5 lb), but that's seed-progression
- * territory, not yet built. This is the fallback every new lift starts from.
+ * The lift-level default increment (PRD §1.9), applied whenever a lift is
+ * first created — the same default for every template, Beginner included.
+ * `increment` is a concrete value the generator reads straight off `Lift`
+ * (cycles.ts never consults the template), decided once at creation and
+ * from then on editable per lift, not re-resolved on every plan generation
+ * the way `tmPercentage` is. Beginner additionally exposes a per-lift
+ * override down to 5 lb for squat/deadlift (docs/templates/beginner.md
+ * "Options") — the book's own alternative for a lift you're weak in, not a
+ * different default for the template as a whole.
  */
 export const DEFAULT_INCREMENT_LB: Record<LiftKey, number> = {
   squat: 10,
@@ -330,6 +336,15 @@ export interface PlannedSet {
 export interface SessionLiftEntry {
   liftKey: LiftKey;
   step: ProgressionStep;
+  /**
+   * Fixed across every template and every progression step, main-work
+   * sessions and 7th Week Protocol sessions alike — 40% x5, 50% x5, 60% x3
+   * off this lift's own training max, before main work only, never before
+   * supplemental. See docs/plan-structure.md "Warm-up sets". Not a template
+   * field: unlike everything else on this type, the ramp itself never
+   * varies, so there's nothing for a template to declare.
+   */
+  warmupSets: PlannedSet[];
   mainWork: PlannedSet[];
   supplemental: PlannedSet[];
   /**
@@ -347,6 +362,21 @@ export interface Session {
   sessionNumber: number;
   cycleNumber: number;
   lifts: SessionLiftEntry[];
+  /**
+   * Per-workout, not per-lift — the book prescribes these once per session
+   * regardless of how many lifts that session trains, so they live here
+   * rather than on SessionLiftEntry. Identical across every session within
+   * one role (Leader, Anchor, or a 7th Week Protocol occurrence) — the UI
+   * displays them once per phase view rather than repeating them on every
+   * SessionCard, matching the owner's "keep noise to a minimum" call.
+   * `warmupCircuit` is deliberately distinct from SessionLiftEntry's
+   * `warmupSets` — one is the fixed bodyweight/mobility circuit before any
+   * work, the other is the per-lift percentage ramp before that lift's own
+   * main work.
+   */
+  assistance: AssistanceTarget[];
+  jumpsOrThrows: JumpsOrThrows;
+  warmupCircuit: WarmupExercise[];
 }
 
 /**

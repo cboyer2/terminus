@@ -18,11 +18,11 @@ export const original531Template: Template = {
   // explicit that main work, jumps/throws and conditioning don't change
   // between Leader and Anchor use, only assistance volume does.
   roleEligibility: "both",
-  // The book doesn't state what may follow original-531 when it's run as a
-  // Leader — in the source material it's mostly described as an Anchor
-  // (e.g. following 5/3/1 Widowmaker or Boring But Big) rather than a
-  // Leader picking its own Anchor. Left empty rather than fabricated.
-  compatibleAnchorIds: [],
+  // Self-pairing: the book's own answer to "how do I run Original 5/3/1 as
+  // both a Leader and an Anchor" is this template feeding into itself,
+  // dropping assistance volume for the Anchor cycles — see
+  // docs/templates/original-531.md "Pairings named in the source".
+  compatibleAnchorIds: ["original-531"],
   supportedDayCounts: [4],
   tmPercentage: { kind: "range", min: 0.8, max: 0.9, default: 0.9 },
 

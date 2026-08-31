@@ -4,10 +4,15 @@
 // stored seed) comes from the chosen Leader template.
 //
 // Deliberately not built here: per-lift TM percentage override editing
-// (Beginner's 90%/85%-per-lift case) — an existing override is preserved on
-// save, but setting one fresh lives on the Templates tab's "Advanced"
-// section, not here, since it's a template/plan-level decision, not a
-// number typed on this screen.
+// (Beginner's 90%/85%-per-lift case) and per-lift increment override editing
+// (Beginner's squat/deadlift 5lb-vs-10lb-for-a-weak-lift case) — an existing
+// value of either is preserved on save, but setting one fresh lives on the
+// Templates tab's "Advanced" / Beginner "Options" sections, not here, since
+// both are template/plan-level decisions, not a number typed on this
+// screen. Every new lift, Beginner included, starts from the standard
+// lift-level increment default (DEFAULT_INCREMENT_LB) — the 5 lb increment
+// is the book's own exception for a lift you're weak in, not Beginner's
+// baseline.
 
 import { TextField } from "@/components/text-field";
 import { ThemedText } from "@/components/themed-text";

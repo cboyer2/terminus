@@ -28,7 +28,7 @@ import { BUTTON_DISABLED_STYLE, BUTTON_STYLE } from "@/components/primary-button
 import { rescaleTrainingMaxSeed } from "@/generator/calc";
 import { TEMPLATES } from "@/generator/templates";
 import type { LiftKey, MainWorkBase, Program, ProgrammingModelId, Template, TemplateId, TemplateRole } from "@/generator/types";
-import { PROGRAMMING_MODELS } from "@/generator/types";
+import { DEFAULT_INCREMENT_LB, PROGRAMMING_MODELS } from "@/generator/types";
 import { Button, Collapsible, FieldGroup, Host, Picker, Row, Spacer, Text as UIText } from "@expo/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, StyleSheet } from "react-native";
@@ -73,6 +73,55 @@ type SupplementalLiftPick = "same" | "opposite";
 const SUPPLEMENTAL_LIFT_ITEMS: { label: string; value: SupplementalLiftPick }[] = [
   { label: "Same as main", value: "same" },
   { label: "Opposite lift", value: "opposite" },
+];
+
+// docs/templates/beginner.md "Options": "Supplemental source, per lift —
+// First Set Last / Second Set Last, derived from the lift's TM percentage
+// (FSL at 90%, SSL at 85%) unless overridden here." Also the book's stall
+// remedy 5, "switch to SSL."
+const DEFAULT_SUPPLEMENTAL_SOURCE = "default" as const;
+type SupplementalSourcePick = typeof DEFAULT_SUPPLEMENTAL_SOURCE | "firstSetLast" | "secondSetLast";
+const SUPPLEMENTAL_SOURCE_ITEMS: { label: string; value: SupplementalSourcePick }[] = [
+  { label: "Plan default", value: DEFAULT_SUPPLEMENTAL_SOURCE },
+  { label: "First Set Last", value: "firstSetLast" },
+  { label: "Second Set Last", value: "secondSetLast" },
+];
+
+// docs/templates/beginner.md "Options": "Supplemental set count — 5x5 /
+// 7-10x5." Also stall remedy 3, "increase supplemental volume to 7-10 x 5 at
+// FSL" — reps stay fixed at 5, only the set count changes.
+const DEFAULT_SUPPLEMENTAL_SET_COUNT = "default" as const;
+type SupplementalSetCountPick = typeof DEFAULT_SUPPLEMENTAL_SET_COUNT | number;
+const SUPPLEMENTAL_SET_COUNT_ITEMS: { label: string; value: SupplementalSetCountPick }[] = [
+  { label: "5 (default)", value: DEFAULT_SUPPLEMENTAL_SET_COUNT },
+  { label: "7", value: 7 },
+  { label: "8", value: 8 },
+  { label: "9", value: 9 },
+  { label: "10", value: 10 },
+];
+
+// docs/templates/beginner.md "Options": "PR / goal set on the final main
+// set — off / on." Also stall remedy 2, "push the last set for a PR or goal,
+// if technique is sound."
+const PR_SET_ITEMS: { label: string; value: "off" | "on" }[] = [
+  { label: "Off", value: "off" },
+  { label: "On", value: "on" },
+];
+
+// docs/templates/beginner.md "Options": "Squat and deadlift increment, per
+// lift — 5 lb · 10 lb, default 10 lb." 10 lb is the standard lift-level
+// default, unchanged by Beginner; 5 lb is the book's own alternative for a
+// lift you're weak in (beginner.md "Progression"), not a blanket override.
+// Unlike every other option on this screen, this one writes straight to
+// Lift.increment (via saveLift), not program.options — the generator reads
+// it directly off the lift, the same as tmPercentageOverride, with no
+// template-level resolution step. Squat/deadlift only: bench/press's
+// standard default is already 5 lb, so the book offers no alternative for
+// them here.
+type IncrementPick = 5 | 10;
+const INCREMENT_ITEMS: { label: string; value: IncrementPick }[] = [
+  { label: "5 lb", value: 5 },
+  { label: "10 lb (default)", value: 10 },
 ];
 
 /** Sentinel meaning "no override — use the plan-wide percentage." */
@@ -183,6 +232,26 @@ export default function TemplatesScreen() {
     press: DEFAULT_SUPPLEMENTAL_PERCENT,
   });
   const [supplementalLiftPick, setSupplementalLiftPick] = useState<SupplementalLiftPick>("same");
+  const [supplementalSourcePicks, setSupplementalSourcePicks] = useState<Record<LiftKey, SupplementalSourcePick>>({
+    squat: DEFAULT_SUPPLEMENTAL_SOURCE,
+    bench: DEFAULT_SUPPLEMENTAL_SOURCE,
+    deadlift: DEFAULT_SUPPLEMENTAL_SOURCE,
+    press: DEFAULT_SUPPLEMENTAL_SOURCE,
+  });
+  const [supplementalSetCountPicks, setSupplementalSetCountPicks] = useState<Record<LiftKey, SupplementalSetCountPick>>({
+    squat: DEFAULT_SUPPLEMENTAL_SET_COUNT,
+    bench: DEFAULT_SUPPLEMENTAL_SET_COUNT,
+    deadlift: DEFAULT_SUPPLEMENTAL_SET_COUNT,
+    press: DEFAULT_SUPPLEMENTAL_SET_COUNT,
+  });
+  const [prSetOnFinalSetPicks, setPrSetOnFinalSetPicks] = useState<Record<LiftKey, "off" | "on">>({
+    squat: "off",
+    bench: "off",
+    deadlift: "off",
+    press: "off",
+  });
+  const [squatIncrementPick, setSquatIncrementPick] = useState<IncrementPick>(10);
+  const [deadliftIncrementPick, setDeadliftIncrementPick] = useState<IncrementPick>(10);
   const [percentageOverridePicks, setPercentageOverridePicks] = useState<Record<LiftKey, PercentageOverridePick>>({
     squat: PERCENTAGE_OVERRIDE_DEFAULT,
     bench: PERCENTAGE_OVERRIDE_DEFAULT,
@@ -193,6 +262,7 @@ export default function TemplatesScreen() {
   // Collapsed by default — most templates have no options, so a template
   // that does shouldn't push its picker rows into view unasked.
   const [bbbOptionsOpen, setBbbOptionsOpen] = useState(false);
+  const [beginnerOptionsOpen, setBeginnerOptionsOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
   // Pre-fill once from the existing program, if any — after that, the
@@ -221,6 +291,29 @@ export default function TemplatesScreen() {
         press: savedOverrides?.press !== undefined ? Math.round(savedOverrides.press * 100) : DEFAULT_SUPPLEMENTAL_PERCENT,
       });
       setSupplementalLiftPick(program.options?.supplementalOppositeLift === true ? "opposite" : "same");
+      const savedSourceOverrides = program.options?.supplementalSourceByLift as
+        | Partial<Record<LiftKey, "firstSetLast" | "secondSetLast">>
+        | undefined;
+      setSupplementalSourcePicks({
+        squat: savedSourceOverrides?.squat ?? DEFAULT_SUPPLEMENTAL_SOURCE,
+        bench: savedSourceOverrides?.bench ?? DEFAULT_SUPPLEMENTAL_SOURCE,
+        deadlift: savedSourceOverrides?.deadlift ?? DEFAULT_SUPPLEMENTAL_SOURCE,
+        press: savedSourceOverrides?.press ?? DEFAULT_SUPPLEMENTAL_SOURCE,
+      });
+      const savedSetCountOverrides = program.options?.supplementalSetCountByLift as Partial<Record<LiftKey, number>> | undefined;
+      setSupplementalSetCountPicks({
+        squat: savedSetCountOverrides?.squat ?? DEFAULT_SUPPLEMENTAL_SET_COUNT,
+        bench: savedSetCountOverrides?.bench ?? DEFAULT_SUPPLEMENTAL_SET_COUNT,
+        deadlift: savedSetCountOverrides?.deadlift ?? DEFAULT_SUPPLEMENTAL_SET_COUNT,
+        press: savedSetCountOverrides?.press ?? DEFAULT_SUPPLEMENTAL_SET_COUNT,
+      });
+      const savedPrSetOverrides = program.options?.prSetOnFinalSetByLift as Partial<Record<LiftKey, boolean>> | undefined;
+      setPrSetOnFinalSetPicks({
+        squat: savedPrSetOverrides?.squat ? "on" : "off",
+        bench: savedPrSetOverrides?.bench ? "on" : "off",
+        deadlift: savedPrSetOverrides?.deadlift ? "on" : "off",
+        press: savedPrSetOverrides?.press ? "on" : "off",
+      });
     }
   }, [program]);
 
@@ -241,6 +334,8 @@ export default function TemplatesScreen() {
         deadlift: overrideFor("deadlift"),
         press: overrideFor("press"),
       });
+      setSquatIncrementPick(lifts.find((l) => l.liftKey === "squat")?.increment === 5 ? 5 : 10);
+      setDeadliftIncrementPick(lifts.find((l) => l.liftKey === "deadlift")?.increment === 5 ? 5 : 10);
     }
   }, [lifts]);
 
@@ -339,6 +434,39 @@ export default function TemplatesScreen() {
         delete options.supplementalOppositeLift;
       }
     }
+    if (isBeginnerModel) {
+      const sourceOverrides: Partial<Record<LiftKey, "firstSetLast" | "secondSetLast">> = {};
+      const setCountOverrides: Partial<Record<LiftKey, number>> = {};
+      const prSetOverrides: Partial<Record<LiftKey, boolean>> = {};
+      for (const liftKey of LIFT_ORDER) {
+        const sourcePick = supplementalSourcePicks[liftKey];
+        if (sourcePick !== DEFAULT_SUPPLEMENTAL_SOURCE) {
+          sourceOverrides[liftKey] = sourcePick;
+        }
+        const setCountPick = supplementalSetCountPicks[liftKey];
+        if (setCountPick !== DEFAULT_SUPPLEMENTAL_SET_COUNT) {
+          setCountOverrides[liftKey] = setCountPick;
+        }
+        if (prSetOnFinalSetPicks[liftKey] === "on") {
+          prSetOverrides[liftKey] = true;
+        }
+      }
+      if (Object.keys(sourceOverrides).length > 0) {
+        options.supplementalSourceByLift = sourceOverrides;
+      } else {
+        delete options.supplementalSourceByLift;
+      }
+      if (Object.keys(setCountOverrides).length > 0) {
+        options.supplementalSetCountByLift = setCountOverrides;
+      } else {
+        delete options.supplementalSetCountByLift;
+      }
+      if (Object.keys(prSetOverrides).length > 0) {
+        options.prSetOnFinalSetByLift = prSetOverrides;
+      } else {
+        delete options.prSetOnFinalSetByLift;
+      }
+    }
     const next: Program = {
       programmingModel,
       leaderTrainingDays,
@@ -366,15 +494,32 @@ export default function TemplatesScreen() {
           const newOverride = overridePick === PERCENTAGE_OVERRIDE_DEFAULT ? null : overridePick / 100;
           const oldEffectivePercentage = lift.tmPercentageOverride ?? oldPercentage;
           const newEffectivePercentage = newOverride ?? tmPercentage;
-          if (oldEffectivePercentage !== newEffectivePercentage) {
-            const rescaledSeed = rescaleTrainingMaxSeed(lift.trainingMaxSeed, oldEffectivePercentage, newEffectivePercentage);
-            await saveLift({ ...lift, tmPercentageOverride: newOverride, trainingMaxSeed: rescaledSeed });
-          } else if (newOverride !== lift.tmPercentageOverride) {
-            // The effective percentage didn't move, but the override field
-            // itself did (e.g. explicitly set to the plan's own value) —
-            // still persist it, just with no seed to rescale.
-            await saveLift({ ...lift, tmPercentageOverride: newOverride });
-          }
+
+          // Squat/deadlift increment override — a Lift field, not a
+          // program.options entry, exactly like tmPercentageOverride above.
+          // Only Beginner exposes this picker; every other model has no
+          // surface for it at all, so a 5 lb override left over from a prior
+          // Beginner run must reset to the standard default here rather than
+          // linger on the lift indefinitely (bench/press never get touched —
+          // neither model offers an override for them).
+          const newIncrement =
+            lift.liftKey !== "squat" && lift.liftKey !== "deadlift"
+              ? lift.increment
+              : isBeginnerModel
+                ? lift.liftKey === "squat"
+                  ? squatIncrementPick
+                  : deadliftIncrementPick
+                : DEFAULT_INCREMENT_LB[lift.liftKey];
+
+          const percentageChanged = oldEffectivePercentage !== newEffectivePercentage;
+          const overrideFieldChanged = newOverride !== lift.tmPercentageOverride;
+          const incrementChanged = newIncrement !== lift.increment;
+          if (!percentageChanged && !overrideFieldChanged && !incrementChanged) continue;
+
+          const rescaledSeed = percentageChanged
+            ? rescaleTrainingMaxSeed(lift.trainingMaxSeed, oldEffectivePercentage, newEffectivePercentage)
+            : lift.trainingMaxSeed;
+          await saveLift({ ...lift, tmPercentageOverride: newOverride, trainingMaxSeed: rescaledSeed, increment: newIncrement });
         }
       }
 
@@ -387,6 +532,7 @@ export default function TemplatesScreen() {
   }, [
     anchorTemplateId,
     anchorTrainingDays,
+    deadliftIncrementPick,
     deloadTrainingDaysPick,
     isBbbOriginalLeader,
     isBeginnerModel,
@@ -395,9 +541,13 @@ export default function TemplatesScreen() {
     lifts,
     mainWorkBasePick,
     percentageOverridePicks,
+    prSetOnFinalSetPicks,
+    squatIncrementPick,
     tmTestTrainingDaysPick,
     supplementalLiftPick,
     supplementalPercentPicks,
+    supplementalSetCountPicks,
+    supplementalSourcePicks,
     program,
     programmingModel,
     saveLift,
@@ -466,6 +616,61 @@ export default function TemplatesScreen() {
                     items={SUPPLEMENTAL_PERCENT_ITEMS}
                   />
                 ))}
+              </Collapsible>
+            )}
+            {/* Beginner's stall remedies (docs/templates/beginner.md
+                "Stall") aren't a single event — each is a per-lift knob a
+                lifter reaches for independently, so all three live together
+                in one submenu rather than being scattered near whichever
+                setting they most resemble. */}
+            {isBeginnerModel && (
+              <Collapsible isOpen={beginnerOptionsOpen} onOpenChange={setBeginnerOptionsOpen} label="Options">
+                {LIFT_ORDER.map((liftKey) => (
+                  <PickerRow
+                    key={`source-${liftKey}`}
+                    label={`${LIFT_LABELS[liftKey]} Supplemental Source`}
+                    selectedValue={supplementalSourcePicks[liftKey]}
+                    onValueChange={(v) => setSupplementalSourcePicks((prev) => ({ ...prev, [liftKey]: v as SupplementalSourcePick }))}
+                    items={SUPPLEMENTAL_SOURCE_ITEMS}
+                  />
+                ))}
+                {LIFT_ORDER.map((liftKey) => (
+                  <PickerRow
+                    key={`setcount-${liftKey}`}
+                    label={`${LIFT_LABELS[liftKey]} Supplemental Sets`}
+                    selectedValue={supplementalSetCountPicks[liftKey]}
+                    onValueChange={(v) => setSupplementalSetCountPicks((prev) => ({ ...prev, [liftKey]: v as SupplementalSetCountPick }))}
+                    items={SUPPLEMENTAL_SET_COUNT_ITEMS}
+                  />
+                ))}
+                {LIFT_ORDER.map((liftKey) => (
+                  <PickerRow
+                    key={`prset-${liftKey}`}
+                    label={`${LIFT_LABELS[liftKey]} PR/Goal Set`}
+                    selectedValue={prSetOnFinalSetPicks[liftKey]}
+                    onValueChange={(v) => setPrSetOnFinalSetPicks((prev) => ({ ...prev, [liftKey]: v as "off" | "on" }))}
+                    items={PR_SET_ITEMS}
+                  />
+                ))}
+                {/* Increment lives on the lift's own row (Lift.increment),
+                    not program.options — only shown once the lift itself
+                    exists, same gating as the TM percentage override below. */}
+                {lifts?.some((l) => l.liftKey === "squat") && (
+                  <PickerRow
+                    label="Squat Increment"
+                    selectedValue={squatIncrementPick}
+                    onValueChange={(v) => setSquatIncrementPick(v as IncrementPick)}
+                    items={INCREMENT_ITEMS}
+                  />
+                )}
+                {lifts?.some((l) => l.liftKey === "deadlift") && (
+                  <PickerRow
+                    label="Deadlift Increment"
+                    selectedValue={deadliftIncrementPick}
+                    onValueChange={(v) => setDeadliftIncrementPick(v as IncrementPick)}
+                    items={INCREMENT_ITEMS}
+                  />
+                )}
               </Collapsible>
             )}
           </FieldGroup.Section>

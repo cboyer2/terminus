@@ -113,11 +113,21 @@ function SetRow({ group }: { group: SetGroup }) {
 }
 
 function LiftEntryRow({ entry }: { entry: SessionLiftEntry }) {
+  const warmupGroups = groupSets(entry.warmupSets);
   const mainGroups = groupSets(entry.mainWork);
   const supplementalGroups = groupSets(entry.supplemental);
   return (
     <View style={styles.liftEntry}>
       <ThemedText style={styles.liftName}>{LIFT_LABELS[entry.liftKey]}</ThemedText>
+      {warmupGroups.length > 0 && (
+        <>
+          <ThemedText style={styles.warmupLabel}>Warm-up</ThemedText>
+          {warmupGroups.map((group, i) => (
+            <SetRow key={`warmup-${i}`} group={group} />
+          ))}
+        </>
+      )}
+      {mainGroups.length > 0 && <ThemedText style={styles.mainWorkLabel}>Main Work</ThemedText>}
       {mainGroups.map((group, i) => (
         <SetRow key={`main-${i}`} group={group} />
       ))}
@@ -183,6 +193,77 @@ function isAnchorCycle(cycleNumber: number, programmingModel: Program["programmi
   return cycleNumber > (leaderPhase?.cycles ?? 0);
 }
 
+/** Which phase view a week-page belongs to — every session within one phase
+ * view carries identical assistance/jumps/warmup (see generator/types.ts's
+ * Session doc comment), so this labels the once-per-week-page reference
+ * card rather than repeating the label on every SessionCard.
+ */
+function phaseLabel(session: Session, program: Program): string {
+  const kind = session.lifts[0]?.step.kind;
+  if (kind === "deload" || kind === "tmTest" || kind === "prTest") return "7th Week Protocol";
+  if (program.programmingModel === "beginner") return "Beginner";
+  return isAnchorCycle(session.cycleNumber, program.programmingModel) ? "Anchor" : "Leader";
+}
+
+/** Templates define their own assistance category strings freely (e.g.
+ * "single-leg-core", "squat/hip-hinge" — see generator/types.ts's
+ * AssistanceTarget), so this is a light formatting pass, not a lookup
+ * table keyed to a closed set of categories. */
+function formatCategory(category: string): string {
+  const spaced = category.replace(/-/g, " ");
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+/** Collapses a {min,max} rep range to a single number when they're equal
+ * (e.g. original-531's Leader assistance is a fixed 100, not "100-100") —
+ * a range is only worth printing as a range when it's actually one. */
+function totalRepsLabel(totalReps: { min: number; max: number }): string {
+  return totalReps.min === totalReps.max ? `${totalReps.min}` : `${totalReps.min}-${totalReps.max}`;
+}
+
+/** Shown once per week-page, not once per session — repeating identical
+ * assistance/jumps/warmup content on every SessionCard within the same
+ * phase view would be pure noise, per the owner's call. */
+function PhaseReferenceCard({ session, program }: { session: Session; program: Program }) {
+  const jumps = session.jumpsOrThrows;
+
+  return (
+    <View style={styles.phaseReference}>
+      <ThemedText style={styles.phaseReferenceTitle}>{phaseLabel(session, program)}</ThemedText>
+
+      {session.warmupCircuit.length > 0 && (
+        <View style={styles.referenceSection}>
+          <ThemedText style={styles.referenceHeading}>Warm-up / Mobility</ThemedText>
+          {session.warmupCircuit.map((exercise, i) => (
+            <ThemedText key={i} style={styles.referenceLine}>
+              {exercise.name} — {exercise.sets > 1 ? `${exercise.sets} x ` : ""}
+              {exercise.reps}
+            </ThemedText>
+          ))}
+        </View>
+      )}
+
+      <View style={styles.referenceSection}>
+        <ThemedText style={styles.referenceHeading}>Jumps / Throws</ThemedText>
+        <ThemedText style={styles.referenceLine}>
+          {totalRepsLabel(jumps.totalReps)} total
+          {jumps.guidance ? ` — ${jumps.guidance}` : ""}
+        </ThemedText>
+      </View>
+
+      <View style={styles.referenceSection}>
+        <ThemedText style={styles.referenceHeading}>Assistance</ThemedText>
+        {session.assistance.map((target, i) => (
+          <ThemedText key={i} style={styles.referenceLine}>
+            {formatCategory(target.category)}: {totalRepsLabel(target.totalReps)} reps
+            {target.exerciseOptions.length > 0 ? ` (${target.exerciseOptions.join(", ")})` : ""}
+          </ThemedText>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 /** Chunks one cycle's sessions into calendar weeks, honouring that a single
  * cycle bucket can mix two different day counts: its main-work sessions
  * (Leader's or Anchor's day count, whichever phase this cycle belongs to)
@@ -228,6 +309,7 @@ function WeekSwiper({ sessions, cycleNumber, program }: { sessions: Session[]; c
       >
         {weeks.map((weekSessions, i) => (
           <ScrollView key={i} style={{ width }} contentContainerStyle={styles.listContent}>
+            {weekSessions[0] && <PhaseReferenceCard session={weekSessions[0]} program={program} />}
             {weekSessions.map((session) => (
               <SessionCard key={session.sessionNumber} session={session} />
             ))}
@@ -378,5 +460,40 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     marginTop: spacing.xs,
+  },
+  warmupLabel: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: colors.secondaryLabel,
+  },
+  mainWorkLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: spacing.xs,
+  },
+  phaseReference: {
+    marginBottom: spacing.xl,
+    padding: spacing.md,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.separator,
+    gap: spacing.sm,
+  },
+  phaseReferenceTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    color: colors.secondaryLabel,
+  },
+  referenceSection: {
+    gap: 2,
+  },
+  referenceHeading: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  referenceLine: {
+    fontSize: 13,
+    color: colors.secondaryLabel,
   },
 });
