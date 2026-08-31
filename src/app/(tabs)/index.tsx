@@ -260,6 +260,13 @@ function PhaseReferenceCard({ session, program }: { session: Session; program: P
           </ThemedText>
         ))}
       </View>
+
+      <View style={styles.referenceSection}>
+        <ThemedText style={styles.referenceHeading}>Conditioning</ThemedText>
+        <ThemedText style={styles.referenceLine}>
+          Up to {session.conditioning.sessionsPerWeek} sessions/week — {session.conditioning.guidance}
+        </ThemedText>
+      </View>
     </View>
   );
 }

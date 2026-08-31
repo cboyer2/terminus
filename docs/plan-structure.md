@@ -203,15 +203,16 @@ session.
    set is a separate thing the book itself calls "warm-up percentages" for
    that table specifically, not a substitute for the ramp every other
    session gets. Fixed across every template; not a template field.
-5. **Assistance, jumps/throws, and the warm-up/mobility circuit are shown
-   once per phase view, not once per session.** All three are per-workout
-   fields the book prescribes identically across every session within one
-   role (Leader, Anchor, or a 7th Week Protocol occurrence) — repeating them
-   on every SessionCard would restate the same content on every one of a
-   phase's sessions. The cheat sheet shows them once per calendar-week page
-   instead (a page's sessions are always homogeneous in role/kind), keyed
-   off `Session.assistance`/`jumpsOrThrows`/`warmupCircuit` rather than a
-   new phase-level concept in the generator's own output.
+5. **Assistance, jumps/throws, the warm-up/mobility circuit, and
+   conditioning are shown once per phase view, not once per session.** All
+   four are per-workout fields the book prescribes identically across every
+   session within one role (Leader, Anchor, or a 7th Week Protocol
+   occurrence) — repeating them on every SessionCard would restate the same
+   content on every one of a phase's sessions. The cheat sheet shows them
+   once per calendar-week page instead (a page's sessions are always
+   homogeneous in role/kind), keyed off
+   `Session.assistance`/`jumpsOrThrows`/`warmupCircuit`/`conditioning`
+   rather than a new phase-level concept in the generator's own output.
 6. **Joe DeFranco's "Agile 8" is the fallback warm-up/mobility circuit**
    wherever a role has no printed circuit of its own — the owner's own
    standing choice, not from the book. Applies to `bbb-original` and

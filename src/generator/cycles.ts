@@ -6,6 +6,7 @@ import { trainingMax, workingWeight } from "./calc";
 import { getTemplate } from "./templates";
 import {
   type AssistanceTarget,
+  type Conditioning,
   type JumpsOrThrows,
   type Lift,
   type LiftKey,
@@ -240,6 +241,7 @@ export function buildMainCycleSessions(
   const assistance = resolveByRole(template.assistance, role);
   const jumpsOrThrows = resolveByRole(template.jumpsOrThrows, role);
   const warmupCircuit = resolveWarmup(resolveByRole(template.warmup, role));
+  const conditioning = resolveByRole(template.conditioning, role);
 
   const sessions: Session[] = [];
   let sessionNumber = startingSessionNumber;
@@ -289,7 +291,7 @@ export function buildMainCycleSessions(
     for (let step = 0; step < mainWorkScheme.length; step++) {
       for (const workout of shape.workouts) {
         const liftEntries = workout.liftKeys.map((liftKey) => buildLiftEntry(liftKey, step as 0 | 1 | 2));
-        sessions.push({ sessionNumber: sessionNumber++, cycleNumber, lifts: liftEntries, assistance, jumpsOrThrows, warmupCircuit });
+        sessions.push({ sessionNumber: sessionNumber++, cycleNumber, lifts: liftEntries, assistance, jumpsOrThrows, warmupCircuit, conditioning });
       }
     }
   } else {
@@ -309,7 +311,7 @@ export function buildMainCycleSessions(
           appearanceCount.set(liftKey, step + 1);
           return buildLiftEntry(liftKey, step);
         });
-        sessions.push({ sessionNumber: sessionNumber++, cycleNumber, lifts: liftEntries, assistance, jumpsOrThrows, warmupCircuit });
+        sessions.push({ sessionNumber: sessionNumber++, cycleNumber, lifts: liftEntries, assistance, jumpsOrThrows, warmupCircuit, conditioning });
       }
     }
   }
@@ -340,6 +342,17 @@ const SEVENTH_WEEK_ASSISTANCE: AssistanceTarget[] = [
 const SEVENTH_WEEK_JUMPS_OR_THROWS: JumpsOrThrows = {
   totalReps: { min: 10, max: 10 },
   guidance: "Any jump or throw variation.",
+};
+
+/** docs/plan-structure.md "Assistance and conditioning": "3-5 easy days.
+ * Hard conditioning is avoided unless the lifter wants a conditioning
+ * test." `sessionsPerWeek` holds the upper end, same convention as every
+ * template's own conditioning field (e.g. original-531's "up to 4 hard
+ * days" is also a cap, not an exact count) — the "3-5" and "easy, no hard
+ * days" nuance lives in guidance instead. */
+const SEVENTH_WEEK_CONDITIONING: Conditioning = {
+  sessionsPerWeek: 5,
+  guidance: "3-5 easy days for recovery; avoid hard conditioning unless testing a mile or a Prowler goal.",
 };
 
 const SEVENTH_WEEK_LAYOUT: Record<2 | 3 | 4, LiftKey[][]> = {
@@ -441,6 +454,7 @@ function buildSeventhWeekSessions(
       assistance: SEVENTH_WEEK_ASSISTANCE,
       jumpsOrThrows: SEVENTH_WEEK_JUMPS_OR_THROWS,
       warmupCircuit: AGILE_8,
+      conditioning: SEVENTH_WEEK_CONDITIONING,
     };
   });
 

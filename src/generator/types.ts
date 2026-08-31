@@ -377,6 +377,7 @@ export interface Session {
   assistance: AssistanceTarget[];
   jumpsOrThrows: JumpsOrThrows;
   warmupCircuit: WarmupExercise[];
+  conditioning: Conditioning;
 }
 
 /**

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { generatePlan } from "../cycles";
-import type { AssistanceTarget, JumpsOrThrows, Lift, LiftKey, PlannedSet, Program, WarmupExercise } from "../types";
+import type { AssistanceTarget, Conditioning, JumpsOrThrows, Lift, LiftKey, PlannedSet, Program, WarmupExercise } from "../types";
 
 /**
  * Frozen fixture for the Beginner template, hand-checked against
@@ -152,6 +152,11 @@ const BEGINNER_WARMUP_CIRCUIT: WarmupExercise[] = [
   { name: "Mountain climbers", sets: 3, reps: "10 per leg" },
 ];
 
+const BEGINNER_CONDITIONING: Conditioning = {
+  sessionsPerWeek: 3,
+  guidance: "1-3 miles or a track-interval session; Prowler/sled substitutes for lifters who can't squat well.",
+};
+
 // docs/plan-structure.md "Assistance and conditioning" / "Session shape" —
 // fixed across every 7th Week Protocol variant, independent of template.
 const SEVENTH_WEEK_ASSISTANCE: AssistanceTarget[] = [
@@ -163,6 +168,11 @@ const SEVENTH_WEEK_ASSISTANCE: AssistanceTarget[] = [
 const SEVENTH_WEEK_JUMPS_OR_THROWS: JumpsOrThrows = {
   totalReps: { min: 10, max: 10 },
   guidance: "Any jump or throw variation.",
+};
+
+const SEVENTH_WEEK_CONDITIONING: Conditioning = {
+  sessionsPerWeek: 5,
+  guidance: "3-5 easy days for recovery; avoid hard conditioning unless testing a mile or a Prowler goal.",
 };
 
 // Joe DeFranco's "Agile 8" — the app's fallback warm-up circuit for the 7th
@@ -198,6 +208,7 @@ describe("generatePlan — beginner template fixture", () => {
         expect(session.assistance).toEqual(BEGINNER_ASSISTANCE);
         expect(session.jumpsOrThrows).toEqual(BEGINNER_JUMPS_OR_THROWS);
         expect(session.warmupCircuit).toEqual(BEGINNER_WARMUP_CIRCUIT);
+        expect(session.conditioning).toEqual(BEGINNER_CONDITIONING);
 
         for (const entry of session.lifts) {
           expect(entry.step).toEqual({ kind: "main", index: step });
@@ -222,6 +233,7 @@ describe("generatePlan — beginner template fixture", () => {
       // The 7th Week Protocol never reuses a template's own printed
       // circuit — Beginner's own (jumping jacks, etc.) does NOT carry over.
       expect(session.warmupCircuit).toEqual(AGILE_8);
+      expect(session.conditioning).toEqual(SEVENTH_WEEK_CONDITIONING);
     }
 
     expect(squatSession.lifts.map((l) => l.liftKey)).toEqual(["squat"]);
