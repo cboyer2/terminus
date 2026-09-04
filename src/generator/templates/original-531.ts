@@ -1,7 +1,9 @@
 // The canonical program. See docs/templates/original-531.md — the
-// hand-verification reference for every field below. Scoped to just this
-// one template of the family for now; original-531-10rep and
-// original-531-ab are deferred.
+// hand-verification reference for every field below. original-531-10rep is
+// implemented alongside this one (original-531-10rep.ts); original-531-ab
+// is still deferred — it needs generator support for two main lifts per
+// session and a 2-calendar-week cycle (docs/ARCHITECTURE.md "Known model
+// gaps").
 
 import type { AssistanceTarget, Template } from "../types";
 
