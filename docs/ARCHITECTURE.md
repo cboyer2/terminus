@@ -176,9 +176,13 @@ beginner  → [{ standalone, 1 }]
 3 + 2     → [{ leader, 3 }, { anchor, 2 }]
 ```
 
-A 7th Week Protocol deload is inserted between phases; the plan always closes
-with a 7th Week TM test. A single-phase model therefore has no mid-plan
-deload, which is why the Beginner model doesn't get one.
+A 7th Week Protocol deload is inserted between phases; the plan always opens
+and closes with a 7th Week TM test — the opening one at cycleIndex 0, the
+exact training max the first phase's first cycle itself starts from, per the
+book's recommendation of a TM test prior to any Leader template (docs/
+plan-structure.md "Placement rules"). A single-phase model therefore has no
+mid-plan deload, which is why the Beginner model doesn't get one, but it
+still gets both TM tests like every other model.
 
 Modelling it this way means later additions — challenge programs that run a
 fixed number of cycles with no Anchor, for instance — are data, not new

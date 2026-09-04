@@ -469,6 +469,21 @@ export function generatePlan(lifts: Lift[], program: Program): Plan {
   let cycleNumber = 1;
   let cycleIndex = 0;
 
+  // Prior to any Leader template, the book recommends a training max test
+  // week — docs/plan-structure.md "Placement rules". Run at cycleIndex 0,
+  // the exact training max the plan's first cycle itself starts from (no
+  // special-cased math: trainingMax(seed, increment, 0) is just the seed).
+  // Every model gets one, Beginner included, for the same reason every
+  // model already gets a closing one — consistency, not a book requirement
+  // for Beginner specifically. Given cycleNumber 0 rather than sharing
+  // cycle 1's: it precedes the first real cycle rather than closing one
+  // out, and 0 is otherwise never used, so there's no ambiguity in the
+  // cycle picker between "the plan's actual first cycle" and this
+  // standalone test week — see index.tsx's cycleLabel.
+  const openingTmTest = buildSeventhWeekSessions("tmTest", tmTestScheme, program.tmTestTrainingDays, liftMap, program, 0, 0, sessionNumber);
+  sessions.push(...openingTmTest.sessions);
+  sessionNumber = openingTmTest.nextSessionNumber;
+
   phases.forEach((phase, phaseIndex) => {
     const templateId = phase.role === "anchor" ? program.anchorTemplateId : program.leaderTemplateId;
     if (!templateId) {

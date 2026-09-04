@@ -38,7 +38,8 @@ Stored state is small and input-only:
 - **Program** — one row: programming model, four independent training-day
   counts (2–4) — the Leader phase, the Anchor phase (null for beginner), the
   mid-plan 7th Week deload (null for beginner, no phase transition), and
-  the closing 7th Week TM test (always set) — leader template, anchor
+  the closing 7th Week TM test (always set, and reused for the plan's
+  opening TM test too — see `docs/plan-structure.md`) — leader template, anchor
   template (null for beginner), a **plan-wide** TM percentage, and a
   template-options payload. The Leader and Anchor may run at different day
   counts (the book pairs a 3-day Leader with a 4-day Anchor, e.g. Original

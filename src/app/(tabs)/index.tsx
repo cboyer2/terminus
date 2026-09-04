@@ -164,8 +164,12 @@ function SessionCard({ session }: { session: Session }) {
 
 /** A short label for the cycle picker — flags whichever 7th Week Protocol
  * variant is attached to this cycle (see cycles.ts: deload/tmTest sessions
- * share the cycleNumber of the cycle they close out). */
+ * share the cycleNumber of the cycle they close out). Cycle 0 is a special
+ * case: cycles.ts's generatePlan attaches the opening TM test there
+ * precisely because it isn't a real training cycle — nothing else ever
+ * shares that number, so it gets its own label rather than "Cycle 0 + ...". */
 function cycleLabel(sessions: Session[], cycleNumber: number): string {
+  if (cycleNumber === 0) return "Starting TM Test";
   const stepKinds = new Set(sessions.filter((s) => s.cycleNumber === cycleNumber).map((s) => s.lifts[0]?.step.kind));
   if (stepKinds.has("tmTest")) return `Cycle ${cycleNumber} + TM Test`;
   if (stepKinds.has("deload")) return `Cycle ${cycleNumber} + Deload`;
@@ -340,7 +344,12 @@ function WeekSwiper({ sessions, cycleNumber, program }: { sessions: Session[]; c
 function CyclePager({ sessions, program }: { sessions: Session[]; program: Program }) {
   const cycleNumbers = useMemo(() => [...new Set(sessions.map((s) => s.cycleNumber))].sort((a, b) => a - b), [sessions]);
   const [cyclePick, setCyclePick] = useState<number | null>(null);
-  const selectedCycle = cyclePick !== null && cycleNumbers.includes(cyclePick) ? cyclePick : cycleNumbers[0];
+  // Cycle 1 (the plan's first real training cycle) is always present and
+  // is the more useful default than cycle 0 (the opening TM test, a
+  // one-time event) — that one's still reachable from the picker, just not
+  // what the app opens on every time. See cycles.ts's generatePlan.
+  const defaultCycle = cycleNumbers.includes(1) ? 1 : cycleNumbers[0];
+  const selectedCycle = cyclePick !== null && cycleNumbers.includes(cyclePick) ? cyclePick : defaultCycle;
 
   const cycleSessions = useMemo(() => sessions.filter((s) => s.cycleNumber === selectedCycle), [sessions, selectedCycle]);
 

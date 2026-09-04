@@ -61,9 +61,9 @@ deload, training max test, and PR test.
 - **Between every Leader and Anchor phase: a deload.** Stated twice, without
   qualification.
 - **Prior to starting new programming: a TM test or a PR test.**
-- **Prior to any Leader template: a TM test week is recommended.** ⚠️ This
-  means a plan may *open* with a 7th week, not only close with one — see the
-  gaps section.
+- **Prior to any Leader template: a TM test week is recommended.** A plan
+  *opens* with a 7th week for this reason, not only closes with one — see
+  "Resolved" #1 below.
 - **Optionally after any cycle**, at the lifter's discretion, especially for
   older lifters and taxing programs.
 
@@ -170,11 +170,22 @@ session.
 
 ## Resolved
 
-1. **A plan does not open with a 7th week.** It runs
-   Leader → deload → Anchor → TM test. The book's recommendation of a TM test
-   prior to a Leader is already served by the setup flow, which derives each
-   training max from an entered actual or estimated 1RM — the same information
-   a test week would produce.
+1. **A plan does open with a 7th week — corrected from an earlier call.**
+   Originally decided the setup flow (deriving each training max from an
+   entered 1RM) already served the book's "TM test prior to a Leader"
+   recommendation, so no dedicated opening week was generated — a plan ran
+   Leader → deload → Anchor → TM test. Real use showed that call was wrong:
+   the setup flow computes a number and moves on, but leaves nothing to look
+   back at, whereas the book means an actual test week worth seeing on the
+   cheat sheet. A plan now runs **opening TM test → Leader → deload →
+   Anchor → closing TM test**, generated at cycleIndex 0 — the exact
+   training max the first cycle itself starts from, not a special-cased
+   computation. Every model gets one, Beginner included, for the same
+   consistency reason the closing test already applies there (Beginner's own
+   chapter has no TM-test framing either way). It gets its own cycle number,
+   0 — otherwise unused — since it precedes the plan's first real cycle
+   rather than closing one out, and reuses `program.tm_test_training_days`
+   rather than a new independent day-count field.
 2. **Each 7th Week Protocol occurrence has its own day-count choice,
    independent of either phase's and of each other** — corrected from an
    earlier, wrong reading of this as inherited from "the plan's

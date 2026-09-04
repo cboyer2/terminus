@@ -28,7 +28,7 @@ A personal planning tool that turns a set of maxes and a chosen 5/3/1 template i
 6. **Enter maxes.** Actual or estimated 1RM for the four main lifts plus whatever supplemental lifts the chosen templates require — which is why this comes after template selection, not before. Built-in estimator: `weight × reps × 0.0333 + weight`.
 7. **Review and approve.** Training max seeds are computed from the entered 1RMs and the chosen percentage, and the full plan is generated. The 1RMs themselves are not kept — the seed is the stored value from here on.
 
-**The generated plan** runs Leader cycles → 7th Week Protocol deload → Anchor cycles → 7th Week Protocol TM test. The closing week is always a TM test, never a PR test. The Beginner model's single cycle has no Leader/Anchor boundary and therefore no mid-plan deload.
+**The generated plan** runs 7th Week Protocol TM test → Leader cycles → 7th Week Protocol deload → Anchor cycles → 7th Week Protocol TM test. Per the book's own recommendation of a TM test prior to any Leader template, the plan opens with one at the exact training max its first cycle starts from — every model gets one, Beginner included. Every closing week is always a TM test, never a PR test. The Beginner model's single cycle has no Leader/Anchor boundary and therefore no mid-plan deload.
 
 **Then, day to day:**
 

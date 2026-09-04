@@ -192,17 +192,44 @@ const AGILE_8: WarmupExercise[] = [
 describe("generatePlan — beginner template fixture", () => {
   const plan = generatePlan(lifts, program);
 
-  it("produces six main sessions and a three-session closing TM test", () => {
-    expect(plan.sessions).toHaveLength(9);
+  // 3 opening-TM-test sessions (squat, bench, deadlift+press — 3-day
+  // layout, cycleNumber 0) + 6 main sessions + 3 closing-TM-test sessions.
+  it("produces a 3-session opening TM test, six main sessions, and a three-session closing TM test", () => {
+    expect(plan.sessions).toHaveLength(12);
+  });
+
+  it("opens with the 3-day 7th Week TM test layout, at cycle 0, before the first real cycle", () => {
+    const [squatSession, benchSession, deadliftPressSession] = plan.sessions.slice(0, 3);
+
+    expect(squatSession.sessionNumber).toBe(1);
+    expect(benchSession.sessionNumber).toBe(2);
+    expect(deadliftPressSession.sessionNumber).toBe(3);
+    for (const session of [squatSession, benchSession, deadliftPressSession]) {
+      expect(session.cycleNumber).toBe(0);
+    }
+    expect(squatSession.lifts.map((l) => l.liftKey)).toEqual(["squat"]);
+    expect(benchSession.lifts.map((l) => l.liftKey)).toEqual(["bench"]);
+    expect(deadliftPressSession.lifts.map((l) => l.liftKey)).toEqual(["deadlift", "press"]);
+
+    // Beginner runs a single total cycle (totalCyclesInModel("beginner") is
+    // 1), so cycleIndex 0 is both the opening test's basis and the closing
+    // test's — the two should therefore compute identical main work here.
+    // Squat: 90% training max -> 3 reps at the top.
+    expect(squatSession.lifts[0].mainWork).toEqual([
+      { tmPercentage: 0.7, workingWeight: 280, reps: 5, isPrSet: false },
+      { tmPercentage: 0.8, workingWeight: 320, reps: 5, isPrSet: false },
+      { tmPercentage: 0.9, workingWeight: 360, reps: 5, isPrSet: false },
+      { tmPercentage: 1, workingWeight: 400, reps: 3, isPrSet: false },
+    ]);
   });
 
   it("alternates Workout A and B across all three progression steps, cycle 1", () => {
     for (let step = 0; step < 3; step++) {
       for (let workoutIndex = 0; workoutIndex < 2; workoutIndex++) {
-        const session = plan.sessions[step * 2 + workoutIndex];
+        const session = plan.sessions[3 + step * 2 + workoutIndex];
         const liftKeys = WORKOUTS[workoutIndex].liftKeys;
 
-        expect(session.sessionNumber).toBe(step * 2 + workoutIndex + 1);
+        expect(session.sessionNumber).toBe(3 + step * 2 + workoutIndex + 1);
         expect(session.cycleNumber).toBe(1);
         expect(session.lifts.map((l) => l.liftKey)).toEqual(liftKeys);
         expect(session.assistance).toEqual(BEGINNER_ASSISTANCE);
@@ -221,11 +248,11 @@ describe("generatePlan — beginner template fixture", () => {
   });
 
   it("closes with the 3-day 7th Week TM test layout: squat, bench, deadlift+press", () => {
-    const [squatSession, benchSession, deadliftPressSession] = plan.sessions.slice(6);
+    const [squatSession, benchSession, deadliftPressSession] = plan.sessions.slice(9);
 
-    expect(squatSession.sessionNumber).toBe(7);
-    expect(benchSession.sessionNumber).toBe(8);
-    expect(deadliftPressSession.sessionNumber).toBe(9);
+    expect(squatSession.sessionNumber).toBe(10);
+    expect(benchSession.sessionNumber).toBe(11);
+    expect(deadliftPressSession.sessionNumber).toBe(12);
     for (const session of [squatSession, benchSession, deadliftPressSession]) {
       expect(session.cycleNumber).toBe(1);
       expect(session.assistance).toEqual(SEVENTH_WEEK_ASSISTANCE);
@@ -242,7 +269,7 @@ describe("generatePlan — beginner template fixture", () => {
   });
 
   it("TM test main work is 70/80/90% x5 then 100% for a percentage-dependent rep target", () => {
-    const allTmTestEntries = plan.sessions.slice(6).flatMap((s) => s.lifts);
+    const allTmTestEntries = plan.sessions.slice(9).flatMap((s) => s.lifts);
     const byLift = new Map(allTmTestEntries.map((e) => [e.liftKey, e]));
 
     // 90% training max (squat, bench, press) -> 3 reps at the top; 85% (deadlift) -> 5.
@@ -288,7 +315,7 @@ describe("generatePlan — beginner template's per-lift options", () => {
       options: { supplementalSourceByLift: { squat: "secondSetLast", deadlift: "firstSetLast" } },
     };
     const plan = generatePlan(lifts, overriddenProgram);
-    const step0Sessions = plan.sessions.slice(0, 2);
+    const step0Sessions = plan.sessions.slice(3, 5);
     const byLift = new Map(step0Sessions.flatMap((s) => s.lifts).map((e) => [e.liftKey, e]));
 
     // Squat's own step-0 sets are 70%x280, 80%x320 — SSL means the second (0.8/320).
@@ -306,7 +333,7 @@ describe("generatePlan — beginner template's per-lift options", () => {
       options: { supplementalSetCountByLift: { squat: 8 } },
     };
     const plan = generatePlan(lifts, overriddenProgram);
-    const step0Sessions = plan.sessions.slice(0, 2);
+    const step0Sessions = plan.sessions.slice(3, 5);
     const byLift = new Map(step0Sessions.flatMap((s) => s.lifts).map((e) => [e.liftKey, e]));
 
     expect(byLift.get("squat")!.supplemental).toHaveLength(8);
@@ -322,7 +349,7 @@ describe("generatePlan — beginner template's per-lift options", () => {
       options: { prSetOnFinalSetByLift: { squat: true } },
     };
     const plan = generatePlan(lifts, overriddenProgram);
-    const mainSessions = plan.sessions.slice(0, 6);
+    const mainSessions = plan.sessions.slice(3, 9);
 
     for (const session of mainSessions) {
       for (const entry of session.lifts) {
