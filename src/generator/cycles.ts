@@ -5,6 +5,8 @@
 import { trainingMax, workingWeight } from "./calc";
 import { getTemplate } from "./templates";
 import {
+  type AssistancePrescription,
+  type AssistanceProfile,
   type AssistanceTarget,
   type Conditioning,
   type JumpsOrThrows,
@@ -141,6 +143,19 @@ function resolveMainWorkScheme(scheme: MainWorkScheme, role: TemplateRole, optio
 }
 
 /**
+ * Resolves an AssistancePrescription for a given role/option combination —
+ * same shape as resolveMainWorkScheme, one level up (the profile choice picks
+ * a ByRole<AssistanceTarget[]>, which then still resolves by role).
+ */
+function resolveAssistance(assistance: AssistancePrescription, role: TemplateRole, options: Record<string, unknown>): AssistanceTarget[] {
+  if ("byAssistanceProfile" in assistance) {
+    const profile = (options.assistanceProfile as AssistanceProfile | undefined) ?? assistance.defaultAssistanceProfile;
+    return resolveByRole(assistance.byAssistanceProfile[profile], role);
+  }
+  return resolveByRole(assistance, role);
+}
+
+/**
  * FSL/SSL derive their percentage from the week's own main-work sets.
  * "percentageOfTrainingMax" (BBB's flat scheme) has no such set to derive
  * from, so it falls back to the prescription's own percentage, overridable
@@ -220,7 +235,13 @@ export function buildMainCycleSessions(
   program: Program,
   cycleNumber: number,
   cycleIndex: number,
-  startingSessionNumber: number
+  startingSessionNumber: number,
+  // Defaults to `template` — only generatePlan's phase loop ever passes
+  // something else, when the just-completed Leader declares
+  // anchorAssistanceFollowsLeader (see that field's doc comment in
+  // types.ts). Every other prescription field still resolves from
+  // `template` itself; only assistance can come from elsewhere.
+  assistanceSourceTemplate: Template = template
 ): { sessions: Session[]; nextSessionNumber: number } {
   // The Leader and Anchor phases may run at different day counts (e.g. a
   // 3-day Leader into a 4-day Anchor) — see docs/ARCHITECTURE.md §3.
@@ -238,7 +259,7 @@ export function buildMainCycleSessions(
 
   // Per-workout, not per-progression-step — identical for every session
   // this call builds, so resolved once rather than inside buildLiftEntry.
-  const assistance = resolveByRole(template.assistance, role);
+  const assistance = resolveAssistance(assistanceSourceTemplate.assistance, role, program.options);
   const jumpsOrThrows = resolveByRole(template.jumpsOrThrows, role);
   const warmupCircuit = resolveWarmup(resolveByRole(template.warmup, role));
   const conditioning = resolveByRole(template.conditioning, role);
@@ -491,8 +512,16 @@ export function generatePlan(lifts: Lift[], program: Program): Plan {
     }
     const template = getTemplate(templateId);
 
+    // Some Leaders declare that whoever follows them as Anchor should
+    // resolve assistance from the Leader's own template instead of the
+    // Anchor's — see Template.anchorAssistanceFollowsLeader's doc comment.
+    // program.leaderTemplateId is always set (every programming model has a
+    // Leader/standalone phase), so this is safe to compute unconditionally.
+    const leaderTemplate = getTemplate(program.leaderTemplateId);
+    const assistanceSourceTemplate = phase.role === "anchor" && leaderTemplate.anchorAssistanceFollowsLeader ? leaderTemplate : template;
+
     for (let i = 0; i < phase.cycles; i++) {
-      const built = buildMainCycleSessions(template, phase.role, liftMap, program, cycleNumber, cycleIndex, sessionNumber);
+      const built = buildMainCycleSessions(template, phase.role, liftMap, program, cycleNumber, cycleIndex, sessionNumber, assistanceSourceTemplate);
       sessions.push(...built.sessions);
       sessionNumber = built.nextSessionNumber;
       cycleNumber++;

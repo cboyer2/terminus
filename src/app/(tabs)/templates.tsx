@@ -13,13 +13,13 @@
 // "Placement rules".
 //
 // Scoped to the core picker (model, days x4, leader, anchor, percentage)
-// plus bbb-original's two wired options (main-work base, per-lift
-// supplemental percentage — the only template with any options wired into
-// the generator), a per-lift TM percentage override, and the architecture's
-// seed-rescale-on-percentage-change formula. Every one of these "extra
-// setting for a choice above" cases is a collapsible "Options" submenu
-// nested under the setting it refines (the Leader Template picker, the
-// Training Max Percentage picker), not off in its own unrelated section
+// plus every template's wired options so far — bbb-original's main-work
+// base and per-lift supplemental percentage, and original-531-ab's
+// assistance volume — a per-lift TM percentage override, and the
+// architecture's seed-rescale-on-percentage-change formula. Every one of
+// these "extra setting for a choice above" cases is a collapsible "Options"
+// submenu nested under the setting it refines (the Leader Template picker,
+// the Training Max Percentage picker), not off in its own unrelated section
 // further down the form.
 
 import { usePlan } from "@/hooks/use-plan";
@@ -27,7 +27,7 @@ import { useLifts } from "@/hooks/use-lifts";
 import { BUTTON_DISABLED_STYLE, BUTTON_STYLE } from "@/components/primary-button";
 import { rescaleTrainingMaxSeed } from "@/generator/calc";
 import { TEMPLATES } from "@/generator/templates";
-import type { LiftKey, MainWorkBase, Program, ProgrammingModelId, Template, TemplateId, TemplateRole } from "@/generator/types";
+import type { AssistanceProfile, LiftKey, MainWorkBase, Program, ProgrammingModelId, Template, TemplateId, TemplateRole } from "@/generator/types";
 import { DEFAULT_INCREMENT_LB, PROGRAMMING_MODELS } from "@/generator/types";
 import { Button, Collapsible, FieldGroup, Host, Picker, Row, Spacer, Text as UIText } from "@expo/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -39,6 +39,16 @@ const MAIN_WORK_BASE_LABELS: Record<MainWorkBase, string> = {
   classic: "Classic (all fives)",
   prSet: "5/3/1 sets and reps (PR set)",
 };
+
+// docs/templates/original-531.md "original-531-ab" § Options: two flat
+// choices, not a Leader/Anchor split (original-531-ab never runs as an
+// Anchor) — see cycles.ts's resolveAssistance and the ab-template's own
+// comment on why the "roleKeyed" value name doesn't mean this varies by
+// role.
+const ASSISTANCE_PROFILE_ITEMS: { label: string; value: AssistanceProfile }[] = [
+  { label: "50-100 reps (default)", value: "flat" },
+  { label: "100 reps", value: "roleKeyed" },
+];
 
 const LIFT_ORDER: LiftKey[] = ["squat", "bench", "deadlift", "press"];
 const LIFT_LABELS: Record<LiftKey, string> = {
@@ -225,6 +235,7 @@ export default function TemplatesScreen() {
   const [anchorTemplateIdPick, setAnchorTemplateIdPick] = useState<TemplateId | null>(null);
   const [tmPercentagePick, setTmPercentagePick] = useState<number>(0.9);
   const [mainWorkBasePick, setMainWorkBasePick] = useState<MainWorkBase>("3/5/1");
+  const [assistanceProfilePick, setAssistanceProfilePick] = useState<AssistanceProfile>("flat");
   const [supplementalPercentPicks, setSupplementalPercentPicks] = useState<Record<LiftKey, SupplementalPercentPick>>({
     squat: DEFAULT_SUPPLEMENTAL_PERCENT,
     bench: DEFAULT_SUPPLEMENTAL_PERCENT,
@@ -262,6 +273,7 @@ export default function TemplatesScreen() {
   // Collapsed by default — most templates have no options, so a template
   // that does shouldn't push its picker rows into view unasked.
   const [bbbOptionsOpen, setBbbOptionsOpen] = useState(false);
+  const [originalAbOptionsOpen, setOriginalAbOptionsOpen] = useState(false);
   const [beginnerOptionsOpen, setBeginnerOptionsOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
@@ -283,6 +295,8 @@ export default function TemplatesScreen() {
       setTmPercentagePick(program.tmPercentage);
       const savedBase = program.options?.mainWorkBase;
       setMainWorkBasePick(savedBase === "classic" || savedBase === "prSet" ? savedBase : "3/5/1");
+      const savedAssistanceProfile = program.options?.assistanceProfile;
+      setAssistanceProfilePick(savedAssistanceProfile === "roleKeyed" ? "roleKeyed" : "flat");
       const savedOverrides = program.options?.supplementalPercentageByLift as Partial<Record<LiftKey, number>> | undefined;
       setSupplementalPercentPicks({
         squat: savedOverrides?.squat !== undefined ? Math.round(savedOverrides.squat * 100) : DEFAULT_SUPPLEMENTAL_PERCENT,
@@ -403,10 +417,12 @@ export default function TemplatesScreen() {
       ? preferredPercentage(leaderTemplate)
       : (percentageChoices[0] ?? tmPercentagePick);
 
-  // Only bbb-original has any option wired into the generator so far — see
-  // docs/templates/boring-but-big.md "Options" and cycles.ts's
-  // resolveMainWorkScheme.
+  // Only bbb-original and original-531-ab have any options wired into the
+  // generator so far — see docs/templates/boring-but-big.md "Options",
+  // docs/templates/original-531.md "original-531-ab" § Options, and
+  // cycles.ts's resolveMainWorkScheme / resolveAssistance.
   const isBbbOriginalLeader = leaderTemplateId === "bbb-original";
+  const isOriginalAbLeader = leaderTemplateId === "original-531-ab";
 
   const handleSave = useCallback(async () => {
     if (!leaderTemplateId) {
@@ -433,6 +449,9 @@ export default function TemplatesScreen() {
       } else {
         delete options.supplementalOppositeLift;
       }
+    }
+    if (isOriginalAbLeader) {
+      options.assistanceProfile = assistanceProfilePick;
     }
     if (isBeginnerModel) {
       const sourceOverrides: Partial<Record<LiftKey, "firstSetLast" | "secondSetLast">> = {};
@@ -532,9 +551,11 @@ export default function TemplatesScreen() {
   }, [
     anchorTemplateId,
     anchorTrainingDays,
+    assistanceProfilePick,
     deadliftIncrementPick,
     deloadTrainingDaysPick,
     isBbbOriginalLeader,
+    isOriginalAbLeader,
     isBeginnerModel,
     leaderTemplateId,
     leaderTrainingDays,
@@ -616,6 +637,16 @@ export default function TemplatesScreen() {
                     items={SUPPLEMENTAL_PERCENT_ITEMS}
                   />
                 ))}
+              </Collapsible>
+            )}
+            {isOriginalAbLeader && (
+              <Collapsible isOpen={originalAbOptionsOpen} onOpenChange={setOriginalAbOptionsOpen} label="Options">
+                <PickerRow
+                  label="Assistance Volume"
+                  selectedValue={assistanceProfilePick}
+                  onValueChange={(v) => setAssistanceProfilePick(v as AssistanceProfile)}
+                  items={ASSISTANCE_PROFILE_ITEMS}
+                />
               </Collapsible>
             )}
             {/* Beginner's stall remedies (docs/templates/beginner.md

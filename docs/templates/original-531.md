@@ -45,6 +45,12 @@ the high end regardless.
   (Anchor)"). Widowmaker itself isn't written yet, so this pairing isn't
   reachable in the app until it is.
 - Original 5/3/1 appears on Boring But Big's list of permitted Anchors.
+- **Original 5/3/1 A/B (Leader) → Original 5/3/1 (Anchor)** — corrected from
+  an earlier, wrong assumption that A/B self-pairs the same way the canonical
+  program does. The owner confirmed the book names only this one compatible
+  anchor for A/B. A/B is therefore **Leader only**, like `original-531-10rep`
+  — it is never itself a book-named Anchor destination, so its own
+  `roleEligibility` is `"leader"`, not `"both"`.
 
 **Resolved:** the training max percentage is selectable — **80%, 85%, or
 90%**, defaulting to **90%** — per *5/3/1 Forever*'s Deload/7th Week Protocol
@@ -65,7 +71,7 @@ all three templates in this family share it.
 |---|---|---|---|---|
 | `original-531` | the canonical program | Leader and Anchor | 4 | 3 weeks |
 | `original-531-10rep` | ten reps on the first set | **Leader only** | 4 | 3 weeks |
-| `original-531-ab` | two main lifts per session | Leader and Anchor | **3** | **2 weeks** |
+| `original-531-ab` | two main lifts per session | **Leader only** | **3** | **2 weeks** |
 
 The five "variations" in the chapter collapse to three templates, because two
 of them are role-keyed assistance rather than distinct programs — see the note
@@ -146,13 +152,30 @@ Three days a week, two main lifts per session. "A" is squat and bench press;
 | Week 1 | Squat 3×5, Bench 3×5 | Deadlift 3×5, Press 3×5 | Squat 3×3, Bench 3×3 |
 | Week 2 | Deadlift 3×3, Press 3×3 | Squat 5/3/1, Bench 5/3/1 | Deadlift 5/3/1, Press 5/3/1 |
 
-Then change training maxes and repeat, for two to three cycles. The last set is
-still pushed for a PR or a goal rep count.
+**Percentages (confirmed by the owner): identical to `original-531`'s
+canonical table.** The "3×5"/"3×3"/"5/3/1" labels describe each session's
+set/rep shape, not a separate percentage table:
 
-⚠️ **A cycle here is two calendar weeks, not three.** Six sessions, each lift
-trained three times — a fives session, a threes session and a 5/3/1 session.
-Any assumption that a cycle is three weeks breaks on this template. Same
-structure as the Beginner template.
+| Session label | Sets |
+|---|---|
+| "3×5" (fives) | 65% × 5, 75% × 5, 85% × 5+ |
+| "3×3" (threes) | 70% × 3, 80% × 3, 90% × 3+ |
+| "5/3/1" | 75% × 5, 85% × 3, 95% × 1+ |
+
+Then change training maxes and repeat, for two to three cycles. The last set is
+still pushed for a PR or a goal rep count — same PR-set placement as the
+canonical table.
+
+**Resolved: a cycle here is two calendar weeks, not three.** Six sessions,
+each lift trained three times — a fives session, a threes session and a
+5/3/1 session. Any assumption that a cycle is three weeks breaks on this
+template. Same structure as the Beginner template. Modelled with the same
+mechanism as `bbb-original`'s 3-day rotation (`weeks: Workout[][]`, per-lift
+appearance counting in `cycles.ts`'s `buildMainCycleSessions`) — squat and
+bench always appear together, so they always share an appearance count (and
+therefore a progression step); deadlift and press likewise. No generator
+change was needed for two lifts per session — see `docs/ARCHITECTURE.md`
+"Known model gaps", corrected alongside this template.
 
 Jumps and throws: **10** (two main lifts per session).
 
@@ -161,9 +184,47 @@ everyone.
 
 ### Options
 
-| Option | Values | Notes |
-|---|---|---|
-| Assistance profile | flat · role-keyed | Flat is 50–100 reps per category throughout. Role-keyed mirrors the canonical template: higher for the first two to three cycles, substantially lower afterwards — the book warns the daily workload gets heavy here |
+**Corrected three times — worth recording all three, since each one narrowed
+in on what the book actually describes:**
+
+1. First pass described the second option as role-keyed, mirroring
+   canonical's own Leader/Anchor split on A/B *itself* — wrong, because A/B
+   doesn't self-pair (see "Pairings named in the source").
+2. Second pass over-corrected: it dropped the role-keyed numbers entirely,
+   on the assumption that anything A/B can't reach in the "anchor" role is
+   dead data.
+3. Third pass, from the owner's own rigid restatement: **the "anchor" side
+   of every one of the book's four options is literally the same template —
+   canonical `original-531` — because that's the only compatible anchor
+   every Leader in this family has.** What actually varies is *which
+   assistance volume `original-531` uses as an Anchor*, depending on which
+   Leader (and, for A/B, which of its own two profiles) just ran:
+
+| Leader that just ran | `original-531` Anchor volume |
+|---|---|
+| `original-531` itself (self-pairing) | 50–75 (its own default) |
+| `original-531-10rep` | 50–100 |
+| `original-531-ab`, "flat" profile | 50–100 |
+| `original-531-ab`, "roleKeyed" profile | 50–75 (matches its own default) |
+
+This isn't a property either template can express alone — `original-531`'s
+own Anchor-cycle assistance depends on *who preceded it*, not just on its
+own role. Modelled as `Template.anchorAssistanceFollowsLeader`: a Leader
+template may declare that whoever follows it as Anchor should resolve
+assistance from *the Leader's own* `assistance` field (in the "anchor"
+role) instead of the Anchor's own — see that field's doc comment in
+types.ts and `generatePlan`'s use of it in cycles.ts. `original-531`,
+`original-531-10rep`, and `original-531-ab` all set it; `bbb-original` does
+not, so `original-531` running as `bbb-original`'s Anchor keeps its own
+50–75 default untouched. No branching on any specific template id — it's a
+generic, opt-in flag any Leader can set.
+
+`original-531-ab`'s own `assistance` field (both profiles) is therefore
+doing double duty: it's A/B's own Leader-cycle volume, *and* — via
+`anchorAssistanceFollowsLeader` — the source of whatever `original-531`'s
+following Anchor cycles use. No separate "pairing" data was needed; the
+existing per-template `assistance` field, resolved in the "anchor" role,
+already produces every one of the four numbers above.
 
 ---
 

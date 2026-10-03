@@ -14,6 +14,9 @@ export const original53110RepTemplate: Template = {
   compatibleAnchorIds: ["original-531"],
   supportedDayCounts: [4],
   tmPercentage: { kind: "range", min: 0.8, max: 0.9, default: 0.9 },
+  // original-531 as Anchor uses 50-100 reps here, not its own 50-75
+  // default — confirmed by the owner. See Template.anchorAssistanceFollowsLeader.
+  anchorAssistanceFollowsLeader: true,
 
   // Same 4-day, one-lift-per-session shape as original-531.
   sessionShape: {

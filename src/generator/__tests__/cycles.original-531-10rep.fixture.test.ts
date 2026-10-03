@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildMainCycleSessions, liftsByKey } from "../cycles";
+import { buildMainCycleSessions, generatePlan, liftsByKey } from "../cycles";
 import { original53110RepTemplate } from "../templates/original-531-10rep";
 import type { Lift, Program } from "../types";
 
@@ -95,6 +95,22 @@ describe("original-531-10rep — assistance is flat, not role-keyed", () => {
     ];
     expect(leaderRun.sessions[0].assistance).toEqual(expected);
     expect(anchorRun.sessions[0].assistance).toEqual(expected);
+  });
+});
+
+describe("generatePlan — original-531-10rep (Leader) -> original-531 (Anchor)", () => {
+  // docs/templates/original-531.md "Options", option 2: original-531's own
+  // Anchor cycles get 50-100 reps here, not its own 50-75 default, per
+  // anchorAssistanceFollowsLeader.
+  it("original-531's Anchor cycles get 50-100 reps, not its own 50-75 default", () => {
+    const plan = generatePlan(lifts, { ...program, anchorTemplateId: "original-531", deloadTrainingDays: 4 });
+    const anchorMainSessions = plan.sessions.filter((s) => s.cycleNumber === 3 && s.lifts[0]?.step.kind === "main");
+    expect(anchorMainSessions.length).toBeGreaterThan(0);
+    expect(anchorMainSessions[0].assistance).toEqual([
+      { category: "push", exerciseOptions: ["Dip", "Push-up", "Overhead triceps extension"], totalReps: { min: 50, max: 100 } },
+      { category: "pull", exerciseOptions: ["Row", "Chin-up"], totalReps: { min: 50, max: 100 } },
+      { category: "single-leg-core", exerciseOptions: ["Ab wheel", "Hanging leg raise", "Lunge"], totalReps: { min: 50, max: 100 } },
+    ]);
   });
 });
 

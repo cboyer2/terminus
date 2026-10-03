@@ -246,6 +246,27 @@ export interface AssistanceTarget {
   totalReps: { min: number; max: number };
 }
 
+/**
+ * `original-531-ab`'s own "Assistance profile" option (docs/templates/
+ * original-531.md "original-531-ab" § Options): flat 50-100 reps throughout,
+ * or role-keyed mirroring the canonical template's own table. Named
+ * analogously to `MainWorkBase` — a knob the book tells you to set, not a
+ * separate template, per the variation/option test.
+ */
+export type AssistanceProfile = "flat" | "roleKeyed";
+
+/**
+ * Same shape as `MainWorkScheme`'s `byMainWorkBase` branch: most templates
+ * just declare a plain `ByRole<AssistanceTarget[]>`; a template whose
+ * assistance is chosen from named profiles (rather than fixed per role)
+ * supplies the option-keyed form instead. Told apart by its own distinct key
+ * (`byAssistanceProfile`), never by structural guessing — `resolveAssistance`
+ * in cycles.ts is the one resolver for both shapes.
+ */
+export type AssistancePrescription =
+  | ByRole<AssistanceTarget[]>
+  | { byAssistanceProfile: Record<AssistanceProfile, ByRole<AssistanceTarget[]>>; defaultAssistanceProfile: AssistanceProfile };
+
 export interface JumpsOrThrows {
   totalReps: { min: number; max: number };
   guidance: string;
@@ -271,11 +292,27 @@ export interface Template {
   compatibleAnchorIds: TemplateId[];
   supportedDayCounts: (2 | 3 | 4)[];
   tmPercentage: TmPercentage;
+  /**
+   * When true, and this template is running as the Leader, its own
+   * Anchor's assistance resolves from *this* template's `assistance` field
+   * (in the "anchor" role) instead of the Anchor template's own — see
+   * cycles.ts's `generatePlan`. Exists because the Original 5/3/1 family's
+   * own Anchor-cycle assistance volume depends on which Leader variant just
+   * ran, not on a value the Anchor template (`original-531`) declares
+   * unconditionally for itself — confirmed by the owner against the book's
+   * four printed Leader/Anchor assistance pairings for this family (see
+   * docs/templates/original-531.md "Options"). A generic, opt-in flag
+   * rather than a branch on any specific template id: unset (falsy) is the
+   * ordinary case — e.g. `bbb-original` leading into `original-531` as
+   * Anchor leaves that Anchor's own 50-75 default untouched, since BBB's
+   * own assistance table has no bearing on it.
+   */
+  anchorAssistanceFollowsLeader?: boolean;
 
   sessionShape: SessionShape;
   mainWorkScheme: MainWorkScheme;
   supplemental: ByRole<Supplemental>;
-  assistance: ByRole<AssistanceTarget[]>;
+  assistance: AssistancePrescription;
   jumpsOrThrows: ByRole<JumpsOrThrows>;
   conditioning: ByRole<Conditioning>;
   warmup: ByRole<WarmupExercise[]>;

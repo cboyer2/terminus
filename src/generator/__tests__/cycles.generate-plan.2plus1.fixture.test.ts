@@ -145,6 +145,20 @@ describe("generatePlan — bbb-original (Leader) -> original-531 (Anchor), 2+1",
     expect(entry.supplemental).toEqual([]);
   });
 
+  // bbb-original doesn't set anchorAssistanceFollowsLeader (see
+  // Template.anchorAssistanceFollowsLeader) — original-531's Anchor cycles
+  // here must keep its own 50-75 default rather than picking up anything
+  // from BBB, unlike the Original 5/3/1 family's own internal pairings
+  // (cycles.original-531-10rep.fixture.test.ts, cycles.original-531-ab.fixture.test.ts).
+  it("anchor assistance stays at original-531's own 50-75 default — bbb-original's own data has no bearing on it", () => {
+    const anchorSession = plan.sessions[32];
+    expect(anchorSession.assistance).toEqual([
+      { category: "push", exerciseOptions: ["Dip", "Push-up", "Overhead triceps extension"], totalReps: { min: 50, max: 75 } },
+      { category: "pull", exerciseOptions: ["Row", "Chin-up"], totalReps: { min: 50, max: 75 } },
+      { category: "single-leg-core", exerciseOptions: ["Ab wheel", "Hanging leg raise", "Lunge"], totalReps: { min: 50, max: 75 } },
+    ]);
+  });
+
   it("closing TM test (attached to the anchor cycle, TM 420/210/520/310)", () => {
     const tmTestSessions = plan.sessions.slice(44, 48);
     const byLift = new Map(tmTestSessions.map((s) => [s.lifts[0].liftKey, s.lifts[0]]));

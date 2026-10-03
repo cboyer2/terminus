@@ -451,14 +451,23 @@ The design is deliberately unfinished in places. These are expected to force
 type changes as templates are added, and are listed so the churn is planned
 rather than alarming.
 
-- **Session shape is under-modelled.** It now covers one lift per day, fixed
-  or week-rotation (`SessionShapeVariant`, resolved per training-day count —
-  bbb-original's 3-day rotation, where a lift's day position and its own
-  progression step both depend on the week index, not a shared one). Still
-  needed: two main lifts in one session (Full Body BBB, Original 5/3/1 A/B),
-  and a main-work scheme that differs between sessions within the same week
-  (Original 5/3/1 A/B runs 3×5, 3×5, 3×3 in week one before switching to
-  5/3/1). This is the most likely thing to break next.
+- **Session shape now covers two lifts per session, not just one — corrected
+  from an earlier, too-pessimistic reading.** This section used to list "two
+  main lifts in one session" and "a main-work scheme that differs between
+  sessions within the same week" as still needed, citing Original 5/3/1 A/B
+  as the thing most likely to break next. Building that template showed
+  otherwise: `Workout.liftKeys` was already an array — `bbb-original`'s
+  3-day rotation just never populated it with more than one key — and
+  `buildMainCycleSessions`'s per-lift appearance counting (each lift's Nth
+  appearance uses progression step N-1, regardless of calendar week) already
+  generalizes to a workout with multiple lift keys that always appear
+  together, which is exactly A/B's shape (squat+bench paired, deadlift+press
+  paired). No generator change was needed — `original-531-ab.ts` is a data
+  record, same as any other template. `SessionShapeVariant` (fixed or
+  week-rotation, resolved per training-day count) stands as originally
+  documented. What's still unconfirmed is Full Body BBB, which may pair
+  lifts that *don't* always appear together — that would need checking once
+  it's modelled, not assumed solved by this same mechanism.
 - **Main work needs per-set flags.** PR sets on some weeks only, goal-rep
   targets, "work up to the training max for a single." A percentage/rep table
   can't express these.

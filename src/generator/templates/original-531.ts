@@ -1,9 +1,7 @@
 // The canonical program. See docs/templates/original-531.md — the
-// hand-verification reference for every field below. original-531-10rep is
-// implemented alongside this one (original-531-10rep.ts); original-531-ab
-// is still deferred — it needs generator support for two main lifts per
-// session and a 2-calendar-week cycle (docs/ARCHITECTURE.md "Known model
-// gaps").
+// hand-verification reference for every field below. The family's other two
+// templates are implemented alongside this one: original-531-10rep.ts and
+// original-531-ab.ts.
 
 import type { AssistanceTarget, Template } from "../types";
 
@@ -27,6 +25,11 @@ export const original531Template: Template = {
   compatibleAnchorIds: ["original-531"],
   supportedDayCounts: [4],
   tmPercentage: { kind: "range", min: 0.8, max: 0.9, default: 0.9 },
+  // Moot for this self-pairing (leader and anchor are the same template
+  // either way) but set for consistency with the rest of the family and in
+  // case a future Leader ever names original-531 as a compatible anchor
+  // without itself setting this flag.
+  anchorAssistanceFollowsLeader: true,
 
   sessionShape: {
     4: {
