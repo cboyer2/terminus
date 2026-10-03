@@ -2,7 +2,7 @@
 
 *A 5/3/1 planner and cheat sheet.*
 
-**Version:** 0.4 · **Owner:** you · **Status:** pre-build
+**Version:** 0.6 · **Owner:** you · **Status:** in build
 
 ---
 
@@ -43,19 +43,19 @@ A personal planning tool that turns a set of maxes and a chosen 5/3/1 template i
 
 **Changing your mind later** uses the same screens as setup, reachable individually. Swapping just the Anchor template does not mean walking the whole flow again.
 
-**Feel:** Tiimo-like. Minimal, calm, high-contrast. One screen answers "what am I doing for the next 3, 4, or 5 cycles, at what weight."
+**Feel:** Tiimo-like. Minimal, calm, high-contrast, glanceable one-handed mid-workout. One screen answers "what is my training plan?"
 
-**Platform:** Web and iOS from the same codebase, day one. The same plan is available on both, synced through a single account. Reads work offline.
+**Platform:** an installable PWA — a Svelte + Vite static build served from GitHub Pages, added to the iPhone Home Screen. All state lives in localStorage on the device: no backend, no account, no sync. Native iOS builds are out of scope; they were the sole reason for the original Expo stack and the toolchain cost more than it returned.
 
 **Template library:** starts with the Beginner template, then Original BBB, and grows one at a time. Each variation in a family — Forever BBB, BBB FSL, Slightly Less BBB and the rest — is its own template record rather than an option on a shared one. The plan generator is data-driven and built so that adding a template means adding a template definition, not editing the generator.
 
 ## 2. Who uses it?
 
-**User:** An intermediate lifter running 5/3/1 Forever who currently plans in spreadsheets or on paper.
+**One user: you.** An intermediate lifter running 5/3/1 Forever who currently plans in spreadsheets or on paper.
 
-**One account, multiple devices.** Phone and laptop show the same plan without manual re-entry. Authentication exists to support a user base.
+**One device.** The iPhone is the device this is used on. State lives in that browser's localStorage, with manual JSON export and import as the backup — clearing site data would otherwise lose everything.
 
-**Design consequences:** no multi-user features, no sharing, no marketing surface, no support burden. Because the app stores only a current snapshot (see §4), the synced state is small. Template text is paraphrased; the book's content is Jim Wendler's not distributed.
+**Design consequences:** no feature ever involves a second human — no sharing, coach/athlete roles, permissions, invites, comments, or public template library. No onboarding flow, no marketing surface, no support burden. The whole stored state is a few hundred bytes of JSON on one device. Template text is paraphrased for personal use; the book's content is Jim Wendler's, which is why the template specs stay out of the public repo.
 
 ## 3. What does success look like?
 
@@ -63,17 +63,17 @@ A personal planning tool that turns a set of maxes and a chosen 5/3/1 template i
 
 **Supporting signals:**
 
-- A new multi-cycle plan is generated end-to-end in under 3 minutes.
-- A change made on the laptop is visible on the phone, with no export, re-entry, or thought given to it.
+- A new 5-cycle plan is generated end-to-end in under 3 minutes.
 - Progressing training maxes is one tap, updates every affected weight in the plan instantly, and never requires re-entering maxes.
-- Every displayed weight matches a hand-check against the book — a wrong number is a hard failure.
+- Every displayed weight matches a hand-check against the book.
 - **Adding the second template requires no changes to the plan generator.** This is the test of whether the data model is right.
+- An export file restores the app's full state on a fresh install.
 
 ## 4. What does it explicitly NOT do?
 
-**Not a logger.** No recording of sets performed, reps hit, RPE, PR-set history, session notes, or completion checkmarks. TM progression happens by explicit user input.
+**Not a logger — permanently, not just in v1.** No recording of sets performed, reps hit, RPE, PR-set history, session notes, or completion checkmarks. Logging is handled by a separate app and any overlap is a defect, not a feature. TM progression happens by explicit user input at cycle boundaries and is never inferred from performance.
 
-**No progress _tracking_.** One word, two meanings, so to be exact: **progressing** — advancing training maxes and watching the plan update — is a core feature (§1.6). **Progress tracking** — charts, trends, strength-over-time graphs, past-cycle archives, "you added 40 lb this year" — is out. The app holds a snapshot: training max seeds, a template, a programming model, and the plan derived from them. It does not know what today's date is or which week you are on — you navigate to the week yourself. Generating overwrites state rather than appending to it.
+**No progress *tracking* — permanently.** One word, two meanings, so to be exact: **progressing** — advancing training maxes and watching the plan update — is a core feature (§1.6). **Progress tracking** — charts, trends, strength-over-time graphs, past-cycle archives, "you added 40 lb this year" — is out, permanently. The app holds a snapshot: training max seeds, a template, a programming model, and the plan derived from them. It does not know what today's date is or which week you are on — you navigate to the week yourself. Generating overwrites state rather than appending to it.
 
 **Also out of scope:**
 
@@ -82,13 +82,12 @@ A personal planning tool that turns a set of maxes and a chosen 5/3/1 template i
 - Nutrition, bodyweight, sleep, or recovery tracking
 - HealthKit / Apple Watch / wearable integration
 - Rest timers, exercise demo videos, form checks, AI coaching
-- Conditioning _tracking_ — conditioning appears as reference guidance only
+- Conditioning *tracking* — conditioning appears as reference guidance only
+- App Store distribution, monetization, analytics, crash reporting
 - Custom user-authored templates (library is curated and defined in code)
 
-**Deliberately deferred, not rejected:** kilogram support, printable/exportable cycle sheets, user-authored templates, and the four alternate stall remedies (push the last set for a PR or goal, raise supplemental volume to 7–10×5 FSL, switch to 5×5/3/1, switch to SSL) — each unlocks when its template lands. V1 pairs a stall reset with repeating the same template.
+**Deliberately deferred, not rejected:** plate-loading math, kilogram support, printable/exportable cycle sheets, and user-authored templates. Of the alternate stall remedies, raising supplemental volume and switching to SSL are template *options* rather than deferred work; pushing the last set for a PR or goal needs a per-set flag on main work; only switching to 5×5/3/1 waits on another template.
 
 ---
 
-**Decided:** managed backend — Supabase (Postgres + auth + row-level security). Chosen for transferable SQL/relational learning over Firebase's proprietary document model; offline read caching will be built by hand rather than inherited.
-
-_Open decisions: which template shapes to model against before writing the generator (proposed: Beginner, BBB, 5×5/3/1 Supplemental Heaven)._
+**Decided (Oct 2026):** no backend. Supabase was chosen originally for cross-device sync and for the learning value of a managed Postgres. With the app installed on one phone and the learning goal retired, it was removed — along with accounts, RLS, keys and environment variables.

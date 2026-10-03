@@ -1,81 +1,119 @@
 import { describe, expect, it } from "vitest";
-import { estimatedMax, roundToNearestFive, trainingMax, workingWeight } from "../calc";
+
+import {
+  estimatedMax,
+  oneRepMaxFromPerformance,
+  rescaleTrainingMaxSeed,
+  roundToNearestFive,
+  trainingMax,
+  trainingMaxSeedFromOneRepMax,
+  workingWeight,
+} from "../calc";
 
 describe("roundToNearestFive", () => {
-  it("rounds down below the midpoint", () => {
-    expect(roundToNearestFive(347)).toBe(345);
+  it("rounds down when closer to the lower multiple of 5", () => {
+    expect(roundToNearestFive(263)).toBe(265);
+    expect(roundToNearestFive(261)).toBe(260);
   });
 
   it("rounds ties up, per docs/ARCHITECTURE.md §7", () => {
     expect(roundToNearestFive(242.5)).toBe(245);
+    expect(roundToNearestFive(227.5)).toBe(230);
   });
 
   it("leaves an exact multiple of 5 unchanged", () => {
-    expect(roundToNearestFive(230)).toBe(230);
+    expect(roundToNearestFive(300)).toBe(300);
   });
 
-  it("rounds a floating-point tie up despite representation noise", () => {
-    // 175 * 0.7 === 122.49999999999999 in IEEE-754, not the mathematically
-    // exact 122.5 - naive Math.round(x/5)*5 rounds this down to 120.
-    expect(roundToNearestFive(175 * 0.7)).toBe(125);
-    // 325 * 0.7 === 227.49999999999997, same failure mode.
-    expect(roundToNearestFive(325 * 0.7)).toBe(230);
-  });
-
-  it("does not misround a genuinely non-tie value near a boundary", () => {
-    // A training max rescaled per docs/ARCHITECTURE.md's percentage-change
-    // formula (455 lb seed, 0.8 -> 0.825) then run through a 32.5% working
-    // weight lands at 152.49609375 - genuinely closer to 150 than 155
-    // (0.00390625 lb short of the true tie), not a floating-point artifact.
-    // A blunt "round to hundredths first" pre-pass snaps this to x.50 and
-    // force-rounds it up to the wrong bucket; it must round down to 150.
-    const oldSeedLb = 455;
-    const oldTmPercentage = 0.8;
-    const newTmPercentage = 0.825;
-    const rescaledSeedLb = oldSeedLb * (newTmPercentage / oldTmPercentage);
-    expect(roundToNearestFive(rescaledSeedLb * 0.325)).toBe(150);
+  it("does not nudge a floating-point near-tie up to match the book (see calc.ts)", () => {
+    // 325 * 0.7 === 227.49999999999997, a few ULPs under the exact .5 tie.
+    // The book prints 225 for this cell (calc.book-fixture.test.ts), not
+    // 230, so this must round down rather than being epsilon-corrected up.
+    expect(roundToNearestFive(325 * 0.7)).toBe(225);
   });
 });
 
 describe("estimatedMax", () => {
-  // Frozen against the book's own worked example (docs/ARCHITECTURE.md §7):
-  // 275 lb x 8 reps -> 348.26 -> rounds to 350. A different number here is a
-  // hard failure, not a style choice.
-  it("matches the book's 275 lb x 8 rep example", () => {
+  it("matches the book's worked example: 275x8 -> 350", () => {
+    // docs/ARCHITECTURE.md §7: the raw formula gives ~348, which rounds to 350.
     expect(estimatedMax(275, 8)).toBe(350);
   });
 
-  it("adds a small buffer over the weight for a single rep", () => {
-    // 300 x 1 x 0.0333 + 300 = 309.99 -> 310
-    expect(estimatedMax(300, 1)).toBe(310);
+  it("computes the raw formula before rounding", () => {
+    // 200 x 1 x 0.0333 + 200 = 206.66 -> rounds to 205.
+    expect(estimatedMax(200, 1)).toBe(205);
+  });
+});
+
+describe("oneRepMaxFromPerformance", () => {
+  it("estimates from weight and reps when reps > 1", () => {
+    expect(oneRepMaxFromPerformance(275, 8)).toBe(350);
+  });
+
+  it("returns the weight itself unchanged at reps <= 1 — no estimating inflation", () => {
+    // estimatedMax(300, 1) would return 310 (300 x 1 x 0.0333 + 300, rounded);
+    // reps<=1 means the weight already IS the max, so that formula is skipped.
+    expect(oneRepMaxFromPerformance(300, 1)).toBe(300);
   });
 });
 
 describe("trainingMax", () => {
-  it("applies the TM percentage with no rounding needed", () => {
-    expect(trainingMax(350, 0.9)).toBe(315);
+  it("returns the seed unchanged for the first cycle of a block", () => {
+    expect(trainingMax(405, 10, 0)).toBe(405);
   });
 
-  it("rounds the result to the nearest 5 lb", () => {
-    // 365 x 0.85 = 310.25 -> 310
-    expect(trainingMax(365, 0.85)).toBe(310);
+  it("adds one increment per subsequent cycle", () => {
+    expect(trainingMax(405, 10, 1)).toBe(415);
+    expect(trainingMax(405, 10, 2)).toBe(425);
+  });
+
+  it("supports the smaller upper-body increment", () => {
+    expect(trainingMax(200, 5, 3)).toBe(215);
   });
 });
 
 describe("workingWeight", () => {
-  it("applies a week's percentage with no rounding needed", () => {
-    expect(workingWeight(350, 0.9)).toBe(315);
+  it("resolves an exact percentage with no rounding needed", () => {
+    expect(workingWeight(400, 0.65)).toBe(260);
+    expect(workingWeight(400, 0.75)).toBe(300);
+    expect(workingWeight(400, 0.85)).toBe(340);
   });
 
-  it("rounds a tie up, matching a classic 5/3/1 week-one first set", () => {
-    // 350 x 0.65 = 227.5 -> 230
+  it("rounds a non-multiple-of-5 result to the nearest 5 lb", () => {
+    // 405 x 0.65 = 263.25 -> rounds to 265.
+    expect(workingWeight(405, 0.65)).toBe(265);
+  });
+
+  it("rounds a tie up, per the shared rounding rule", () => {
+    // 350 x 0.65 = 227.5, an exact tie -> rounds to 230, not 225.
     expect(workingWeight(350, 0.65)).toBe(230);
   });
+});
 
-  it("rounds up at a 70% week-two first set despite floating-point noise", () => {
-    // 325 x 0.7 === 227.49999999999997 in IEEE-754; the true tie is 227.5,
-    // which must round up to 230, not down to 225. 70% is the book's
-    // standard week-two first-set percentage, so this runs every cycle.
-    expect(workingWeight(325, 0.7)).toBe(230);
+describe("trainingMaxSeedFromOneRepMax", () => {
+  it("applies the TM percentage to an entered 1RM, rounded to the nearest 5 lb", () => {
+    expect(trainingMaxSeedFromOneRepMax(405, 0.9)).toBe(365);
+    expect(trainingMaxSeedFromOneRepMax(275, 0.85)).toBe(235);
+  });
+
+  it("rounds a tie up, per the shared rounding rule", () => {
+    // 350 x 0.65 = 227.5, an exact tie -> rounds to 230, not 225.
+    expect(trainingMaxSeedFromOneRepMax(350, 0.65)).toBe(230);
+  });
+});
+
+describe("rescaleTrainingMaxSeed", () => {
+  it("scales the seed by the ratio of new to old percentage", () => {
+    // 340 / 0.85 = 400 (the implied 1RM), x 0.9 = 360 exactly.
+    expect(rescaleTrainingMaxSeed(340, 0.85, 0.9)).toBe(360);
+  });
+
+  it("rounds a non-exact result to the nearest 5 lb", () => {
+    // 400 x (0.85 / 0.9) = 377.77... -> rounds to 380.
+    expect(rescaleTrainingMaxSeed(400, 0.9, 0.85)).toBe(380);
+  });
+
+  it("leaves the seed unchanged when the percentage doesn't change", () => {
+    expect(rescaleTrainingMaxSeed(405, 0.9, 0.9)).toBe(405);
   });
 });

@@ -1,37 +1,33 @@
 # Architecture — Terminus
 
-Derived from `docs/PRD.md` and the constraints in `CLAUDE.md`. This is a design
-reference, not an implementation.
+Derived from `docs/PRD.md` and the constraints in `CLAUDE.md`.
 
 ---
 
 ## 1. Layering
 
 ```
-
-              app/ (expo-router)
-              screens + hooks
+              src/ (Svelte)
+              views + stores
                 /           \
                ↓             ↓
-          data/            generator/
-   Supabase + cache     pure functions + types
-   (the only I/O)       (imports nothing)
-
+        storage/           generator/
+   localStorage + export   pure functions + types
+     (the only I/O)        (imports nothing)
 ```
 
-This is a fan, not a stack. `app/` depends on both; nothing depends on `app/`.
+This is a fan, not a stack. `src/` depends on both; nothing depends on `src/`.
 
-`generator/` imports nothing — not React, not Supabase, not storage, and not
-`data/`. Values flow the other way: `use-plan.ts` reads seeds and template
-selection from `data/` and passes them **in as arguments**. The generator
-only ever knows about the numbers it is handed.
+`generator/` imports nothing — not Svelte, not storage. Values flow the other
+way: a store reads seeds and template selection from `storage/` and passes them
+**in as arguments**. The generator only ever knows the numbers it is handed.
 
-`data/` doesn't call the generator either. It returns rows. The one edge
-between them is that `data/` may import types from `generator/types.ts`, and
-that edge points one way only.
+`storage/` doesn't call the generator either. It reads and writes one JSON
+blob. The one edge between them is that `storage/` may import types from
+`generator/types.ts`, and that edge points one way only.
 
 This is what makes "verify weights against a frozen fixture" possible without
-spinning up Expo or Supabase at all.
+spinning up a browser at all.
 
 ## 2. `generator/` — the core
 
@@ -67,6 +63,61 @@ that true:
   Leader's compatible-anchor list, templates supporting the chosen day count,
   and Anchor role eligibility. Leader is always chosen first.
 
+### Variation or option?
+
+Templates in the book come in families with many named variations, and the
+line between "a different template" and "a setting on this template" needs a
+rule, or the library becomes inconsistent.
+
+**The test: a variation is something the book prints a separate table for; an
+option is a knob the book tells you to set.**
+
+- Original BBB, Forever BBB, Slightly Less BBB, Original 5/3/1 10-rep,
+  Original 5/3/1 A/B — each has its own printed table. **Separate templates.**
+- BBB's 40–60% supplemental percentage, supplemental on the same or opposite
+  lift, three or four training days — each is a choice the text asks you to
+  make. **Options**, carried in the `options` payload.
+- Original 5/3/1's assistance-volume variation — no new table, only different
+  rep targets for Leader versus Anchor use. **Neither**: it is a role-keyed
+  field on one template.
+
+The underlying reason is that variations change what the pickers filter on. The
+10-rep variation is Leader-only; the A/B variation is three days, two lifts per
+session, and a two-week cycle. As options inside one record, `supportedDayCounts`
+would become `[3, 4]` and role eligibility "both", with only certain
+combinations legal — cross-field validation bolted onto a data model. As
+separate records the filters simply work.
+
+**Formally: if a variation changes any setup-constraint field — role
+eligibility, supported day counts, TM percentage, compatible anchors, cycle
+length, or session shape — it must be its own template. If it changes only
+prescription fields, it may be an option.**
+
+The printed-table test is the quick version and usually agrees. Where they
+disagree, **the constraint test wins**: Forever BBB prints two percentage
+tables but they differ in no constraint, so they are one template with an
+intensity option.
+
+Cycle length and session shape count as constraints even though the pickers
+don't filter on them, because both are structural — they change what a session
+or a cycle *is*, not merely what it contains.
+
+**Day count alone never splits a template.** What matters is whether a
+different day count changes the shape of a session. Original BBB runs one main
+lift per session at both three and four days, so it is one template declaring
+`supportedDayCounts: [3, 4]`. Original 5/3/1's A/B variation puts two main
+lifts in a session and runs a two-week cycle, so it is a separate template. The
+test: does the day count change what a session *contains*, or only *when*
+sessions happen? Terminus tracks no dates, so "when" is nearly invisible to it.
+
+Training days is also **not** an option in the `options` payload — it is a
+plan-level setting chosen before templates are picked, and templates declare
+compatibility through `supportedDayCounts`.
+
+Templates also carry a **`family`** label — "Boring But Big", "Original 5/3/1"
+— used only for grouping in the picker, so a library of forty records doesn't
+present as forty flat entries.
+
 ### Role-keyed fields
 
 **Any prescription field may hold either a plain value or a map keyed by
@@ -99,9 +150,9 @@ anchors, and supported day counts are flat by definition. Most importantly:
 fields differ by role, it isn't one template with role-keyed fields — it's two
 templates, and should be split.
 
-  The generator reads this record; it never branches on template name —
-  except the one deliberate, commented exception `CLAUDE.md` allows for v1's
-  single Beginner template.
+  The generator reads this record; it never branches on template name. The
+  temporary exception that applied while only the Beginner template existed has
+  expired.
 - **One shared calc module.** Rounding, TM-from-seed, percentage-to-weight —
   one function each, called everywhere. This is where the "hardcode math in
   only one place" rule lives.
@@ -127,7 +178,7 @@ deload, which is why the Beginner model doesn't get one.
 
 Modelling it this way means later additions — challenge programs that run a
 fixed number of cycles with no Anchor, for instance — are data, not new
-branches. The `programming_model` column stores an ID either way.
+branches. The programming model is stored as an ID either way.
 
 Domain types live in `generator/types.ts` and everything imports them from
 there. There is no separate `domain/` directory — it would add a hop without
@@ -174,7 +225,7 @@ calendar-week grid.
 
 ### Weeks are not all the same shape
 
-A block contains normal training weeks _and_ 7th Week Protocol weeks, which
+A block contains normal training weeks *and* 7th Week Protocol weeks, which
 have different set/rep structures and different meanings. Modelling them as
 one `CycleWeek` type forces optional fields that are meaningless half the
 time. Use a discriminated union:
@@ -190,128 +241,120 @@ type Week =
 The payoff: the compiler forces every renderer to handle every week kind, so
 a new week type can't silently render as blank.
 
-## 3. Data model (Postgres via Supabase)
+**7th week sessions do not use the template's session shape.** They have their
+own layout keyed by training days alone — at three days, deadlift and press
+share the final session even under a one-lift-per-day template. They also carry
+no supplemental work and reduced assistance. A 7th week is therefore not "a
+normal week at different percentages"; it is a different structure that happens
+to use the same lifts. Full details in `docs/plan-structure.md`.
 
-Only inputs are stored — no plan, no position, no dates, per §4 of the PRD.
+## 3. Data model
 
+One JSON object in localStorage. Only inputs are stored — no plan, no position,
+no dates.
+
+```ts
+type State = {
+  lifts: Lift[]
+  program: Program
+}
+
+type Lift = {
+  liftKey: string              // 'squat' | 'bench' | 'press' | 'deadlift' | …
+  role: 'main' | 'supplemental'
+  trainingMaxSeed: number      // lb
+  tmPercentageOverride: number | null   // overrides the program default
+  increment: number            // lb, lift-level default; template may override
+}
+
+type Program = {
+  programmingModel: 'beginner' | '2+1' | '2+2' | '3+2'
+  trainingDays: 2 | 3 | 4
+  leaderTemplateId: string
+  anchorTemplateId: string | null       // null for the beginner model
+  tmPercentage: number                  // plan-wide default, from the Leader
+  options: Record<string, unknown>      // template-specific selections
+}
 ```
-lifts
-  id                      uuid, pk
-  user_id                 uuid, fk → auth.users
-  lift_key                text, constrained to a known set ('squat', 'bench',
-                          'press', 'deadlift', 'front_squat', …)
-  role                    text, 'main' | 'supplemental'
-  training_max_seed_lb    numeric
-  tm_percentage_override  numeric, 0–1, nullable — overrides the program
-                          default for this lift only
-  increment_lb            numeric, lift-level default (template may override)
-  unique (user_id, lift_key)
 
-program
-  user_id               uuid, pk — one row per user, and that is the point
-  programming_model     text, 'beginner' | '2+1' | '2+2' | '3+2'
-  training_days         int, check between 2 and 4
-  leader_template_id    text
-  anchor_template_id    text, null for the beginner model
-  tm_percentage         numeric, 0–1 — plan-wide default, from the Leader
-  options               jsonb, template-specific optional selections
-```
-
-Five things worth noting about that shape:
-
-- **`lift_key`, not `name`, is the identifier.** Templates are code and must
-  refer to lifts by a stable key; free-text names would let "Bench Press" and
-  "bench press" silently produce different plans.
-- **The TM percentage is plan-wide by default, with a per-lift override.**
-  Each template declares a percentage or a range; the **Leader template's**
-  value sets `program.tm_percentage`, and it carries through the Anchor
-  unchanged. A lift may override it — the Beginner chapter assigns 90% to
-  stronger lifts and 85% to lifts the lifter struggles with on weight or form,
-  so they can work lighter while correcting technique.
+- **`liftKey`, not a display name, is the identifier.** Templates refer to
+  lifts by a stable key; free text would let "Bench Press" and "bench press"
+  produce different plans.
+- **The TM percentage is plan-wide, with a per-lift override.** The Leader
+  template's value sets it and it carries through the Anchor unchanged. The
+  Beginner chapter assigns 90% to stronger lifts and 85% to lifts the lifter
+  struggles with, which is what the override is for.
 
   ```
   effectivePercentage(lift) = lift.tmPercentageOverride ?? program.tmPercentage
   ```
 
   **Per-lift is permitted; per-phase is not.** Varying the percentage between
-  Leader and Anchor is the thing this design removed, and an override must
-  never be used to reintroduce it.
-- **The 1RM is not stored.** It is an entry-time convenience only — the seed
-  is computed from it at setup and the 1RM discarded. It is derivable as
-  `seed ÷ effectivePercentage(lift)`, and after a few cycles of progression
-  that derived figure is more current than the number originally typed.
-- **`role` and `increment_lb` exist because the generator needs them.** The
-  increment lives on the template with this column as the fallback.
-- **`program` is singular and keyed by `user_id`.** A plural table with its
-  own `id` implies you can hold several, which is the door history walks back
-  in through. One row, enforced by the schema.
+  Leader and Anchor is the thing this design excludes.
+- **The 1RM is not stored.** It is an entry-time input; the seed is computed
+  from it and the 1RM discarded. Derivable as
+  `seed ÷ effectivePercentage(lift)`, which after a few cycles is more current
+  than the number originally typed.
+- **Templates are code**, not data — `generator/templates/*.ts`. The library is
+  curated, not user-authored. `program` records which templates are selected,
+  not what they contain.
 
 ### Changing the percentage
 
-Swapping the Leader template for one with a different percentage does not
-recompute the seed from a stored 1RM — there isn't one. It rescales:
+Swapping the Leader for a template with a different percentage rescales rather
+than recomputing:
 
 ```
 newSeed = oldSeed × (newPercentage / oldPercentage)
 ```
 
-This preserves whatever progression the seed has accumulated while honouring
-the new template's intended percentage. The same arithmetic applies if the
-percentage is edited by hand.
+This preserves accumulated progression while honouring the new template's
+percentage. The same applies when the percentage is edited by hand.
 
-Templates themselves are **not** a table — they're code
-(`generator/templates/*.ts`), since the library is curated, not user-authored
-(an explicit non-goal in the PRD). `program` records *which* templates are
-selected, not what they contain.
-
-RLS: every row scoped by `auth.uid() = user_id` — one policy per table, not
-per column. RLS is enabled in the same migration that creates each table,
-never as a follow-up.
-
-## 4. `data/` — the only I/O layer
+## 4. `storage/` — the only I/O layer
 
 ```
-data/
-  supabase.ts        client init
-  lifts.ts           getLifts, upsertLift  (verb-first, per convention)
-  program.ts         getProgram, setProgram
-  cache.ts           AsyncStorage-backed read cache for offline
+storage/
+  state.ts           load, save — one JSON blob in localStorage
+  transfer.ts        exportJson, importJson — manual backup
 ```
 
-**Reads offline:** `cache.ts` mirrors the last-fetched `lifts` +
-`program` rows to AsyncStorage — not SecureStore, which is reserved
-for session tokens. On load the app renders from cache immediately, then
-reconciles with a live fetch. Because the plan is derived, there is nothing
-to reconcile for the plan itself; only seeds and template selection
-round-trip.
+All state is a single serialised object: lifts and program. A few hundred
+bytes. There is no backend, no account, no key, and no `.env`.
 
-**Writes offline:** writes require connectivity and fail loudly. No queue, no
-optimistic local write, no background retry. Editing a seed is a deliberate
-act performed a handful of times a year, almost never mid-session — a sync
-queue would be more machinery than the problem deserves, and silent failure
-is the one outcome worse than an error message.
+**The risk this creates:** clearing site data destroys everything, with no
+copy anywhere else. `transfer.ts` is the mitigation — an export that writes the
+state to a file and an import that reads it back. Not sync, just a backup the
+user triggers.
 
-## 5. `app/` — expo-router screens
+**No offline data cache is needed** because there is no network. The service
+worker caches the app shell so the installed PWA launches instantly, and that
+is the whole of its job.
 
-A thin layer. No business logic — screens call a hook, hand the result to
-the generator, render.
+## 5. `src/` — Svelte views
+
+A thin layer. No business logic — views read a store, hand the result to the
+generator, render.
 
 ```
-app/
-  index.tsx           cheat sheet — current cycle/week, computed weights
-  maxes.tsx           enter/edit lifts + estimated-max calculator
-  template.tsx        template + programming model picker, template library
-hooks/
-  use-lifts.ts        wraps data/lifts.ts + cache
-  use-plan.ts         wraps data/program.ts, then calls generator/cycles.ts
+src/
+  App.svelte
+  views/
+    CheatSheet.svelte   current cycle/session, computed weights
+    Maxes.svelte        enter/edit lifts + estimated-max calculator
+    Program.svelte      programming model, training days, template pickers
+  stores/
+    state.ts            wraps storage/, holds lifts + program
+    plan.ts             derives the Plan from state via generator/cycles.ts
 ```
 
-`use-plan.ts` is the seam: it's the only place that composes stored inputs
-(from `data/`) with the pure generator to produce a `Plan` for rendering.
-Nothing else in `app/` should import from `generator/` directly except
-through this hook — keeps the "one screen answers what am I doing"
-requirement honest, since there's exactly one code path producing the
-numbers on screen.
+**No router.** Three views, no deep linking inside an installed PWA, so a
+single `view` store replaces hash routing, the SPA fallback and the base-path
+mismatch trap.
+
+`plan.ts` is the seam: the only place composing stored inputs with the pure
+generator to produce a `Plan`. Nothing else in `src/` imports from
+`generator/` directly.
 
 ## 6. Testing
 
@@ -323,10 +366,11 @@ almost entirely the generator:
   the test named explicitly in `CLAUDE.md` — "not by inspection."
 - **Property-style checks** worth having later: adjusting one lift's seed
   changes only that lift's numbers (PRD §1.6 is literally asserting this).
-- `data/` and `app/` don't need much beyond type-checking — there's no logic
-  there to break.
+- `storage/` needs one round-trip test: save then load then export then import
+  returns the same state. It is the only place data loss can originate.
+- `src/` needs nothing beyond type-checking — there's no logic there to break.
 
-## 7. Rounding
+## 7. Rounding — settled
 
 **Round to the nearest 5 lb.** One rule, one function, applied at every
 rounding point — estimated max and working weight alike. This stays
@@ -374,3 +418,27 @@ rather than alarming.
 generator and a fixture. Build the schema, `calc.ts`, the Beginner template
 and its fixture first. Do not build plan-view UI on a `Week` type that no
 second template has yet tested.
+
+## 9. Build and deploy
+
+```
+Svelte + Vite + TypeScript   static build
+vite-plugin-pwa              manifest + service worker (Workbox)
+GitHub Actions               build → GitHub Pages
+```
+
+**The base path is the thing that breaks.** A project site is served from
+`/terminus/`, which must match Vite's `base` and the manifest's `start_url` and
+`scope`. Mismatched, the service worker fails to register and the app silently
+refuses to install. With no router there is nothing else to keep in sync.
+
+**iOS install:** `display: standalone` in the manifest plus a 180×180
+`apple-touch-icon`. Installation is Safari's Share → Add to Home Screen only —
+there is no install prompt and no way to trigger one, so the first-run view
+should say so.
+
+**No environment variables.** No backend means no keys, no `.env`, no redirect
+URLs. Nothing secret ships, which is what makes the public repo unremarkable.
+
+**Native iOS is out of scope.** It was the sole reason for the original Expo
+stack and the toolchain cost more than it returned.
