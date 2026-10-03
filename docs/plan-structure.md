@@ -61,9 +61,9 @@ deload, training max test, and PR test.
 - **Between every Leader and Anchor phase: a deload.** Stated twice, without
   qualification.
 - **Prior to starting new programming: a TM test or a PR test.**
-- **Prior to any Leader template: a TM test week is recommended.** A plan
-  *opens* with a 7th week for this reason, not only closes with one — see
-  "Resolved" #1 below.
+- **Prior to any Leader template: a TM test week is recommended.** ⚠️ This
+  means a plan may *open* with a 7th week, not only close with one — see the
+  gaps section.
 - **Optionally after any cycle**, at the lifter's discretion, especially for
   older lifters and taxing programs.
 
@@ -97,12 +97,8 @@ emphatic about this and calls treating the training max as a strength measure
 one of the biggest beginner mistakes.
 
 **Failing the test** — one or two reps at the training max — means lowering it:
-run the estimated-max formula on what was managed and re-derive the training
-max at the lift's own already-effective percentage (85–90%, from the Leader
-template or a per-lift override). This has no dedicated UI of its own — it's
-the same "enter maxes" flow used at any other time, just fed the test's
-weight/reps; see PRD §1.9. Beginner has no 7th Week TM test framing in its
-own progression section and uses the Stalled path instead.
+run the estimated-max formula on what was managed and set the training max to
+85–90% of that.
 
 ### Session shape — independent of the template
 
@@ -143,102 +139,33 @@ Useful context for the setup flow's percentage step:
   `tm_percentage_override`.
 - Training maxes will need resetting frequently, especially press and bench.
 
-## Part 3 — Warm-up sets
-
-Before main work only — never before supplemental, and not a template
-option. Every template runs the identical ramp:
-
-| Set | Percentage | Reps |
-|---|---|---|
-| 1 | 40% | 5 |
-| 2 | 50% | 5 |
-| 3 | 60% | 3 |
-
-Same basis as every other working weight — **percentage of the training
-max**, not the 1RM, rounded the same way (docs/ARCHITECTURE.md §7). Computed
-per lift, off that lift's own training max for the session it appears in —
-the same training max its main work for that session uses.
-
-**Applies before 7th Week Protocol sessions too.** The deload/TM
-test/PR test's own 70/80/90% climb to the top set (Part 2's "three variants"
-table above) is a different thing — the book's own "warm-up percentages" for
-*that* table — and doesn't replace this ramp; a 7th Week Protocol session
-still opens with 40/50/60% before its own main work, same as any other
-session.
-
 ---
 
 ## Resolved
 
-1. **A plan does open with a 7th week — corrected from an earlier call.**
-   Originally decided the setup flow (deriving each training max from an
-   entered 1RM) already served the book's "TM test prior to a Leader"
-   recommendation, so no dedicated opening week was generated — a plan ran
-   Leader → deload → Anchor → TM test. Real use showed that call was wrong:
-   the setup flow computes a number and moves on, but leaves nothing to look
-   back at, whereas the book means an actual test week worth seeing on the
-   cheat sheet. A plan now runs **opening TM test → Leader → deload →
-   Anchor → closing TM test**, generated at cycleIndex 0 — the exact
-   training max the first cycle itself starts from, not a special-cased
-   computation. Every model gets one, Beginner included, for the same
-   consistency reason the closing test already applies there (Beginner's own
-   chapter has no TM-test framing either way). It gets its own cycle number,
-   0 — otherwise unused — since it precedes the plan's first real cycle
-   rather than closing one out, and reuses `program.tm_test_training_days`
-   rather than a new independent day-count field.
-2. **Each 7th Week Protocol occurrence has its own day-count choice,
-   independent of either phase's and of each other** — corrected from an
-   earlier, wrong reading of this as inherited from "the plan's
-   training-days setting," and refined once more from a first correction
-   that still shared one choice between the mid-plan deload and the closing
-   TM test. The book states the 7th Week Protocol has three day-count
-   options (two, three, or four) that can be picked regardless of what day
-   count the surrounding Leader or Anchor phase runs — and the deload and
-   the TM test are each their own occurrence, so a plan can run, say, a
-   3-day deload and a 2-day closing TM test. Stored as
-   `program.deload_training_days` and `program.tm_test_training_days`,
-   columns separate from each other and from `leader_training_days`/
-   `anchor_training_days` — see docs/ARCHITECTURE.md §3. The 7th week has
-   its **own layout table keyed by day count**, independent of the
-   template's session shape either way — at three days it puts deadlift and
-   press together on the final day even for a template that is otherwise
-   one lift per day.
-3. **Two training days is allowed by the schema and freely selectable for
-   the 7th Week Protocol**, even though no template's own session shape
-   supports 2 days yet — the 7th Week Protocol's day count isn't limited by
-   template availability the way the Leader's and Anchor's day-count pickers
-   are, since it's an independent choice with its own complete layout table
-   for 2, 3, and 4 days.
-4. **The 40/50/60% warm-up ramp applies before every main-work session, 7th
-   Week Protocol included** — the 7th week's own 70/80/90% climb to its top
-   set is a separate thing the book itself calls "warm-up percentages" for
-   that table specifically, not a substitute for the ramp every other
-   session gets. Fixed across every template; not a template field.
-5. **Assistance, jumps/throws, the warm-up/mobility circuit, and
-   conditioning are shown once per phase view, not once per session.** All
-   four are per-workout fields the book prescribes identically across every
-   session within one role (Leader, Anchor, or a 7th Week Protocol
-   occurrence) — repeating them on every SessionCard would restate the same
-   content on every one of a phase's sessions. The cheat sheet shows them
-   once per calendar-week page instead (a page's sessions are always
-   homogeneous in role/kind), keyed off
-   `Session.assistance`/`jumpsOrThrows`/`warmupCircuit`/`conditioning`
-   rather than a new phase-level concept in the generator's own output.
-6. **Joe DeFranco's "Agile 8" is the fallback warm-up/mobility circuit**
-   wherever a role has no printed circuit of its own — the owner's own
-   standing choice, not from the book. Applies to `bbb-original` and
-   `original-531` (both declare an empty `warmup` for every role today) and
-   to the 7th Week Protocol (which never has a printed circuit, independent
-   of whichever template is running the surrounding phase, the same way its
-   assistance and jumps/throws tables are independent of the template).
+1. **A plan does not open with a 7th week.** It runs
+   Leader → deload → Anchor → TM test. The book's recommendation of a TM test
+   prior to a Leader is already served by the setup flow, which derives each
+   training max from an entered actual or estimated 1RM — the same information
+   a test week would produce.
+2. **The 7th week uses the plan's training-days setting**, not a separate
+   choice. But note what that does *not* mean: the 7th week has its **own
+   layout table keyed by day count**, independent of the template's session
+   shape. At three days it puts deadlift and press together on the final day
+   even for a template that is otherwise one lift per day.
+3. **Two training days is allowed by the schema but currently unreachable.**
+   The 7th Week Protocol supports a 2-day layout; no template read so far does.
+   Keep the 2–4 range in the type — the day-count picker should offer only
+   values for which at least one template exists, derived from the library
+   rather than hardcoded.
 
 ## Recorded, not gaps
 
-7. **7th week weeks are structurally different**, not just differently
+4. **7th week weeks are structurally different**, not just differently
    weighted: no supplemental, limited assistance, own session layout. Confirms
    that a discriminated union of week kinds is required rather than optional.
-8. **The PR test is excluded** by the decision to always close with a TM test.
+5. **The PR test is excluded** by the decision to always close with a TM test.
    A deliberate simplification of the book, which permits either. Recorded so
    it isn't mistaken for an oversight.
-9. **Optional deload after any cycle** is not modelled and shouldn't be — with
+6. **Optional deload after any cycle** is not modelled and shouldn't be — with
    no position tracking, an on-demand deload has nowhere to live.
