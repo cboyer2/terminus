@@ -24,6 +24,13 @@ describe("roundToNearestFive", () => {
   it("leaves an exact multiple of 5 unchanged", () => {
     expect(roundToNearestFive(300)).toBe(300);
   });
+
+  it("does not nudge a floating-point near-tie up to match the book (see calc.ts)", () => {
+    // 325 * 0.7 === 227.49999999999997, a few ULPs under the exact .5 tie.
+    // The book prints 225 for this cell (calc.book-fixture.test.ts), not
+    // 230, so this must round down rather than being epsilon-corrected up.
+    expect(roundToNearestFive(325 * 0.7)).toBe(225);
+  });
 });
 
 describe("estimatedMax", () => {

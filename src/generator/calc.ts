@@ -9,6 +9,15 @@
  * Round to the nearest 5 lb, ties rounding up (242.5 -> 245).
  * `Math.round` already rounds half-up for positive numbers, which is the
  * behavior every frozen fixture in this project assumes.
+ *
+ * Deliberately does NOT nudge floating-point near-ties (e.g. 325 * 0.7 ===
+ * 227.49999999999997, a few ULPs under the exact .5) up to the mathematical
+ * tie before rounding. An earlier attempt at that "fix" was tried and
+ * reverted: it broke the frozen book fixture for a 325 lb training max at
+ * 70%, which the book prints as 225, not 230 — i.e. the book's own table
+ * isn't perfectly consistent about ties (contrast the 110 lb @ 75% row,
+ * where the book *does* print the ties-up value, 85). Matching the book
+ * exactly outranks mathematical purity here; see calc.book-fixture.test.ts.
  */
 export function roundToNearestFive(pounds: number): number {
   return Math.round(pounds / 5) * 5;
