@@ -317,6 +317,7 @@ percentage. The same applies when the percentage is edited by hand.
 storage/
   state.ts           load, save — one JSON blob in localStorage
   transfer.ts        exportJson, importJson — manual backup
+  view-position.ts   last-viewed cycle + week page — view state, not State
 ```
 
 All state is a single serialised object: lifts and program. A few hundred
@@ -326,6 +327,13 @@ bytes. There is no backend, no account, no key, and no `.env`.
 copy anywhere else. `transfer.ts` is the mitigation — an export that writes the
 state to a file and an import that reads it back. Not sync, just a backup the
 user triggers.
+
+**View position is not state.** `view-position.ts` stores the cheat sheet's
+last-viewed cycle number and week index under its own key, so an installed PWA
+that iOS terminates in the background reopens on the same page. It records
+what was on screen, not where the lifter is — it is excluded from export,
+never reaches the generator, and holds indices only, never a weight. A saved
+page that no longer exists in the plan falls back to the default.
 
 **No offline data cache is needed** because there is no network. The service
 worker caches the app shell so the installed PWA launches instantly, and that

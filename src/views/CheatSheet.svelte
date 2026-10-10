@@ -7,10 +7,15 @@
   // constant. planStore is the only seam into generator/ this view uses.
   import { planStore } from "../stores/plan";
   import { stateStore } from "../stores/state";
+  import { loadViewPosition, saveViewPosition } from "../storage/view-position";
   import { chunkCycleIntoWeeks, cycleLabel } from "./cheat-sheet-helpers";
   import WeekPager from "./WeekPager.svelte";
 
-  let cyclePick: number | null = null;
+  // Reopen on the last-viewed page — view state only, never a training
+  // position. An out-of-range saved cycle falls through to the default
+  // below; an out-of-range week is clamped by WeekPager.
+  let savedPosition = loadViewPosition();
+  let cyclePick: number | null = savedPosition?.cycleNumber ?? null;
 
   $: program = $stateStore.program;
   $: plan = $planStore.plan;
@@ -23,6 +28,13 @@
   $: selectedCycle = cyclePick !== null && cycleNumbers.includes(cyclePick) ? cyclePick : defaultCycle;
   $: cycleSessions = plan ? plan.sessions.filter((s) => s.cycleNumber === selectedCycle) : [];
   $: weeks = program ? chunkCycleIntoWeeks(cycleSessions, selectedCycle, program) : [];
+  $: initialWeekIndex = savedPosition && savedPosition.cycleNumber === selectedCycle ? savedPosition.weekIndex : 0;
+
+  function pickCycle(cycleNumber: number) {
+    cyclePick = cycleNumber;
+    savedPosition = null; // restore only on launch; a picked cycle opens at its first week
+    saveViewPosition({ cycleNumber, weekIndex: 0 });
+  }
 </script>
 
 <div class="cheat-sheet">
@@ -32,14 +44,19 @@
     <p class="empty-text">Enter your training maxes and choose a template to generate your plan.</p>
   {:else}
     <div class="cycle-picker">
-      <select value={selectedCycle} on:change={(e) => (cyclePick = Number(e.currentTarget.value))}>
+      <select value={selectedCycle} on:change={(e) => pickCycle(Number(e.currentTarget.value))}>
         {#each cycleNumbers as n}
           <option value={n}>{cycleLabel(plan.sessions, n)}</option>
         {/each}
       </select>
     </div>
     {#key selectedCycle}
-      <WeekPager {weeks} {program} />
+      <WeekPager
+        {weeks}
+        {program}
+        {initialWeekIndex}
+        onWeekChange={(weekIndex) => saveViewPosition({ cycleNumber: selectedCycle, weekIndex })}
+      />
     {/key}
   {/if}
 </div>
