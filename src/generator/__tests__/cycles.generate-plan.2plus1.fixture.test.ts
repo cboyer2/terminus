@@ -237,4 +237,28 @@ describe("generatePlan — mixed day counts: 3-day bbb-original (Leader) -> 4-da
       ["deadlift", "press"],
     ]);
   });
+
+  it("carries each lift's training max, one per cycle, protocol weeks included", () => {
+    const tmsByCycle = new Map<number, Set<number>>();
+    for (const session of plan.sessions) {
+      for (const entry of session.lifts.filter((l) => l.liftKey === "squat")) {
+        const set = tmsByCycle.get(session.cycleNumber) ?? new Set<number>();
+        set.add(entry.trainingMax);
+        tmsByCycle.set(session.cycleNumber, set);
+      }
+    }
+    // Seed 400, +10 per cycle. Cycle 0 (opening TM test) shares cycle 1's
+    // TM; the deload (cycle 2) and closing TM test (cycle 3) use the TM of
+    // the cycle they're attached to.
+    expect([...tmsByCycle.entries()].map(([cycle, tms]) => [cycle, [...tms]])).toEqual([
+      [0, [400]],
+      [1, [400]],
+      [2, [410]],
+      [3, [420]],
+    ]);
+
+    // Bench: seed 200, +5 per cycle -> 210 by cycle 3.
+    const benchCycle3 = plan.sessions.flatMap((s) => (s.cycleNumber === 3 ? s.lifts : [])).find((l) => l.liftKey === "bench");
+    expect(benchCycle3?.trainingMax).toBe(210);
+  });
 });

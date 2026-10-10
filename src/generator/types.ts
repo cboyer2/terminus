@@ -374,6 +374,13 @@ export interface SessionLiftEntry {
   liftKey: LiftKey;
   step: ProgressionStep;
   /**
+   * This lift's training max for the session's cycle — the number every
+   * set below was computed from. Constant for a lift across every session
+   * sharing a cycleNumber, 7th Week Protocol sessions included, so the UI
+   * can show one reference TM per lift per cycle without doing the math.
+   */
+  trainingMax: number;
+  /**
    * Fixed across every template and every progression step, main-work
    * sessions and 7th Week Protocol sessions alike — 40% x5, 50% x5, 60% x3
    * off this lift's own training max, before main work only, never before

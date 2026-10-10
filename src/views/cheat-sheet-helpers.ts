@@ -4,7 +4,8 @@
 // all the same shape".
 
 import { PROGRAMMING_MODELS } from "../generator/types";
-import type { PlannedSet, Program, ProgressionStep, Session } from "../generator/types";
+import type { LiftKey, PlannedSet, Program, ProgressionStep, Session } from "../generator/types";
+import { LIFT_ORDER } from "../lift-labels";
 
 export function stepLabel(step: ProgressionStep): string {
   switch (step.kind) {
@@ -63,6 +64,25 @@ export function cycleLabel(sessions: Session[], cycleNumber: number): string {
   if (stepKinds.has("tmTest")) return `Cycle ${cycleNumber} + TM Test`;
   if (stepKinds.has("deload")) return `Cycle ${cycleNumber} + Deload`;
   return `Cycle ${cycleNumber}`;
+}
+
+export interface CycleTrainingMax {
+  liftKey: LiftKey;
+  trainingMax: number;
+}
+
+/** Each lift's training max for one cycle, in LIFT_ORDER — read straight off
+ * the generated plan, never recomputed here. A lift has one TM per cycle
+ * (see SessionLiftEntry.trainingMax), so its first appearance is enough. */
+export function cycleTrainingMaxes(sessions: Session[], cycleNumber: number): CycleTrainingMax[] {
+  const byLift = new Map<LiftKey, number>();
+  for (const session of sessions) {
+    if (session.cycleNumber !== cycleNumber) continue;
+    for (const entry of session.lifts) {
+      if (!byLift.has(entry.liftKey)) byLift.set(entry.liftKey, entry.trainingMax);
+    }
+  }
+  return LIFT_ORDER.filter((liftKey) => byLift.has(liftKey)).map((liftKey) => ({ liftKey, trainingMax: byLift.get(liftKey)! }));
 }
 
 function chunkIntoWeeks(sessions: Session[], sessionsPerWeek: number): Session[][] {
