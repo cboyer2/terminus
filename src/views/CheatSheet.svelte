@@ -8,7 +8,8 @@
   import { planStore } from "../stores/plan";
   import { stateStore } from "../stores/state";
   import { loadViewPosition, saveViewPosition } from "../storage/view-position";
-  import { chunkCycleIntoWeeks, cycleLabel } from "./cheat-sheet-helpers";
+  import { LIFT_LABELS } from "../lift-labels";
+  import { chunkCycleIntoWeeks, cycleLabel, cycleTrainingMaxes } from "./cheat-sheet-helpers";
   import WeekPager from "./WeekPager.svelte";
 
   // Reopen on the last-viewed page — view state only, never a training
@@ -28,6 +29,7 @@
   $: selectedCycle = cyclePick !== null && cycleNumbers.includes(cyclePick) ? cyclePick : defaultCycle;
   $: cycleSessions = plan ? plan.sessions.filter((s) => s.cycleNumber === selectedCycle) : [];
   $: weeks = program ? chunkCycleIntoWeeks(cycleSessions, selectedCycle, program) : [];
+  $: trainingMaxes = plan ? cycleTrainingMaxes(plan.sessions, selectedCycle) : [];
   $: initialWeekIndex = savedPosition && savedPosition.cycleNumber === selectedCycle ? savedPosition.weekIndex : 0;
 
   function pickCycle(cycleNumber: number) {
@@ -50,6 +52,16 @@
         {/each}
       </select>
     </div>
+    {#if trainingMaxes.length > 0}
+      <div class="tm-reference" aria-label="Training maxes for this cycle">
+        <span class="tm-label">TM</span>
+        <span class="tm-values">
+          {#each trainingMaxes as { liftKey, trainingMax }}
+            <span class="tm-value">{LIFT_LABELS[liftKey]} {trainingMax}</span>
+          {/each}
+        </span>
+      </div>
+    {/if}
     {#key selectedCycle}
       <WeekPager
         {weeks}
@@ -75,6 +87,26 @@
   }
   .cycle-picker {
     padding: var(--space-sm) var(--space-lg) 0;
+  }
+  .tm-reference {
+    display: flex;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-lg) 0;
+    font-size: 14px;
+  }
+  .tm-label {
+    font-weight: 600;
+    color: var(--color-secondary-label);
+  }
+  .tm-values {
+    display: grid;
+    grid-template-columns: repeat(2, max-content);
+    column-gap: var(--space-lg);
+    row-gap: 2px;
+    font-variant-numeric: tabular-nums;
+  }
+  .tm-value {
+    white-space: nowrap;
   }
   select {
     width: 100%;

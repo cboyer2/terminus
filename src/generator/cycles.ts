@@ -298,6 +298,7 @@ export function buildMainCycleSessions(
     return {
       liftKey,
       step: { kind: "main", index: step },
+      trainingMax: tm,
       warmupSets: buildWarmupSets(tm),
       mainWork: buildPlannedSets(effectiveWeekSets, tm),
       supplemental: supplementalSets,
@@ -462,6 +463,7 @@ function buildSeventhWeekSessions(
       return {
         liftKey,
         step: { kind: stepKind },
+        trainingMax: tm,
         warmupSets: buildWarmupSets(tm),
         mainWork: buildSeventhWeekPlannedSets(schemeForPercentage(percentage), tm),
         supplemental: [],
