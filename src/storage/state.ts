@@ -1,6 +1,7 @@
 // The only I/O layer — one JSON blob in localStorage. See
 // docs/ARCHITECTURE.md §4. No plan, position, or date is ever stored here;
-// just the inputs the generator needs (lifts + program).
+// just the inputs the generator needs (lifts + program). The cheat sheet's
+// last-viewed page is view state and lives separately in view-position.ts.
 
 import type { Lift, Program } from "../generator/types";
 

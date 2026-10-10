@@ -1,17 +1,28 @@
 <script lang="ts">
+  import { onMount } from "svelte";
+
   import type { Program, Session } from "../generator/types";
   import PhaseReferenceCard from "./PhaseReferenceCard.svelte";
   import SessionCard from "./SessionCard.svelte";
 
   export let weeks: Session[][];
   export let program: Program;
+  export let initialWeekIndex = 0;
+  export let onWeekChange: (weekIndex: number) => void = () => {};
 
   let scroller: HTMLDivElement;
-  let pageIndex = 0;
+  let pageIndex = Math.min(initialWeekIndex, Math.max(weeks.length - 1, 0));
+
+  onMount(() => {
+    if (pageIndex > 0) scroller.scrollLeft = pageIndex * scroller.clientWidth;
+  });
 
   function onScroll() {
     if (!scroller || scroller.clientWidth === 0) return;
-    pageIndex = Math.round(scroller.scrollLeft / scroller.clientWidth);
+    const next = Math.round(scroller.scrollLeft / scroller.clientWidth);
+    if (next === pageIndex) return;
+    pageIndex = next;
+    onWeekChange(next);
   }
 </script>
 

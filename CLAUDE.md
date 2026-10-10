@@ -96,6 +96,10 @@ Never name anything bare `max`, `weight`, or `percent`.
 - **Do not add history or progress tracking** — charts, trends, PR records,
   past-cycle archives.
 - **Do not track dates or position** — no current-week marker, no calendar.
+  The one exception is view state: the cheat sheet remembers the last-viewed
+  cycle and week page (`storage/view-position.ts`) so a relaunch reopens where
+  you were looking. That is what was on screen, not where you are in training —
+  keep it outside the State blob and never feed it to the generator.
 - **Do not persist a generated plan.** Derive it. A stale weight on screen is
   the worst possible bug.
 - **Do not add a backend, accounts, or sync.** State is local.
