@@ -13,14 +13,14 @@
 
   import { rescaleTrainingMaxSeed } from "../generator/calc";
   import { TEMPLATES } from "../generator/templates";
-  import { DEFAULT_INCREMENT_LB, PROGRAMMING_MODELS, resolveByRole } from "../generator/types";
+  import { DEFAULT_INCREMENT_LB, PROGRAMMING_MODELS, isStandaloneModel, resolveByRole } from "../generator/types";
   import type {
     AssistanceProfile,
     LiftKey,
+    LiftSupplemental,
     MainWorkBase,
     Program,
     ProgrammingModelId,
-    SupplementalPrescription,
     SupplementalSchemeChoice,
     Template,
     TemplateId,
@@ -102,6 +102,7 @@
     "2+1": "2 Leader / 1 Anchor",
     "2+2": "2 Leader / 2 Anchor",
     "3+2": "3 Leader / 2 Anchor",
+    challenge: "BBB Challenge (3 cycles)",
   };
   const MODEL_IDS = Object.keys(PROGRAMMING_MODELS) as ProgrammingModelId[];
 
@@ -210,12 +211,15 @@
   let saveError: string | null = null;
 
   $: isBeginnerModel = programmingModel === "beginner";
+  // No Leader/Anchor split: Beginner and the BBB Challenge.
+  $: isStandalone = isStandaloneModel(programmingModel);
+  $: primaryRole = (isStandalone ? "standalone" : "leader") as TemplateRole;
+  $: fitsModel = (t: Template) => !t.programmingModels || t.programmingModels.includes(programmingModel);
 
   $: leaderAvailableDayCounts = (() => {
-    const role: TemplateRole = isBeginnerModel ? "standalone" : "leader";
     const days = new Set<number>();
     for (const t of allTemplates) {
-      if (eligibleForRole(t, role)) t.supportedDayCounts.forEach((d) => days.add(d));
+      if (eligibleForRole(t, primaryRole) && fitsModel(t)) t.supportedDayCounts.forEach((d) => days.add(d));
     }
     return [...days].sort((a, b) => a - b) as (2 | 3 | 4)[];
   })();
@@ -224,16 +228,15 @@
     ? leaderTrainingDaysPick
     : (leaderAvailableDayCounts[0] ?? leaderTrainingDaysPick);
 
-  $: leaderOptions = (() => {
-    const role: TemplateRole = isBeginnerModel ? "standalone" : "leader";
-    return allTemplates.filter((t) => eligibleForRole(t, role) && t.supportedDayCounts.includes(leaderTrainingDays));
-  })();
+  $: leaderOptions = allTemplates.filter(
+    (t) => eligibleForRole(t, primaryRole) && fitsModel(t) && t.supportedDayCounts.includes(leaderTrainingDays)
+  );
 
   $: leaderTemplateId = leaderOptions.some((t) => t.id === leaderTemplateIdPick) ? leaderTemplateIdPick : (leaderOptions[0]?.id ?? "");
   $: leaderTemplate = leaderTemplateId ? TEMPLATES[leaderTemplateId] : undefined;
 
   $: anchorAvailableDayCounts = (() => {
-    if (isBeginnerModel || !leaderTemplate) return [] as (2 | 3 | 4)[];
+    if (isStandalone || !leaderTemplate) return [] as (2 | 3 | 4)[];
     const days = new Set<number>();
     for (const t of allTemplates) {
       if (eligibleForRole(t, "anchor") && leaderTemplate.compatibleAnchorIds.includes(t.id)) {
@@ -248,13 +251,13 @@
     : (anchorAvailableDayCounts[0] ?? anchorTrainingDaysPick);
 
   $: anchorOptions = (() => {
-    if (isBeginnerModel || !leaderTemplate) return [] as Template[];
+    if (isStandalone || !leaderTemplate) return [] as Template[];
     return allTemplates.filter(
       (t) => eligibleForRole(t, "anchor") && t.supportedDayCounts.includes(anchorTrainingDays) && leaderTemplate!.compatibleAnchorIds.includes(t.id)
     );
   })();
 
-  $: anchorTemplateId = isBeginnerModel
+  $: anchorTemplateId = isStandalone
     ? null
     : anchorOptions.some((t) => t.id === anchorTemplateIdPick)
       ? anchorTemplateIdPick
@@ -280,7 +283,7 @@
         : mainWorkScheme.defaultMainWorkBase
       : undefined;
 
-  $: leaderSupplemental = leaderTemplate && !isBeginnerModel ? resolveByRole(leaderTemplate.supplemental, "leader") : "none";
+  $: leaderSupplemental = leaderTemplate && !isBeginnerModel ? resolveByRole(leaderTemplate.supplemental, primaryRole) : "none";
   $: supplementalSchemes =
     typeof leaderSupplemental === "object" && "bySupplementalScheme" in leaderSupplemental
       ? (Object.entries(leaderSupplemental.bySupplementalScheme) as [string, SupplementalSchemeChoice][])
@@ -291,15 +294,28 @@
         ? supplementalSchemePick
         : leaderSupplemental.defaultSupplementalScheme
       : undefined;
-  $: selectedPrescription = ((): SupplementalPrescription | undefined => {
-    if (typeof leaderSupplemental !== "object") return undefined;
-    if ("source" in leaderSupplemental) return leaderSupplemental;
-    if ("bySupplementalScheme" in leaderSupplemental && supplementalScheme !== undefined) {
-      return leaderSupplemental.bySupplementalScheme[supplementalScheme].prescription;
+  // The selected supplemental, per lift — a per-lift layout varies it by day.
+  $: selectedSupplementalByLift = ((): Partial<Record<LiftKey, LiftSupplemental>> => {
+    if (typeof leaderSupplemental !== "object") return {};
+    if ("source" in leaderSupplemental) {
+      return Object.fromEntries(LIFT_ORDER.map((k) => [k, { prescription: leaderSupplemental }]));
     }
-    return undefined;
+    if ("bySupplementalScheme" in leaderSupplemental && supplementalScheme !== undefined) {
+      const choice = leaderSupplemental.bySupplementalScheme[supplementalScheme];
+      return "byLift" in choice ? choice.byLift : Object.fromEntries(LIFT_ORDER.map((k) => [k, { prescription: choice.prescription }]));
+    }
+    return {};
   })();
-  $: offersSupplementalPercentage = selectedPrescription?.source === "percentageOfTrainingMax";
+  // Lifts whose supplemental takes a settable flat percentage, keyed by the
+  // day's own lift.
+  $: percentageLiftKeys = LIFT_ORDER.filter((k) => selectedSupplementalByLift[k]?.prescription.source === "percentageOfTrainingMax");
+  $: offersSupplementalPercentage = percentageLiftKeys.length > 0;
+  function supplementalPercentLabel(liftKey: LiftKey): string {
+    const from = selectedSupplementalByLift[liftKey]?.fromLiftKey;
+    return from && from !== liftKey
+      ? `${LIFT_LABELS[liftKey]} Day (${LIFT_LABELS[from]}) Supplemental %`
+      : `${LIFT_LABELS[liftKey]} Supplemental %`;
+  }
   $: offersOppositeLift = !isBeginnerModel && leaderTemplate?.allowsOppositeSupplementalLift === true;
   $: offersAssistanceProfile = !isBeginnerModel && !!leaderTemplate && "byAssistanceProfile" in leaderTemplate.assistance;
   $: hasLeaderOptions =
@@ -324,7 +340,7 @@
 
     const percentageOverrides: Partial<Record<LiftKey, number>> = {};
     if (offersSupplementalPercentage) {
-      for (const liftKey of LIFT_ORDER) {
+      for (const liftKey of percentageLiftKeys) {
         const pick = supplementalPercentPicks[liftKey];
         if (pick !== DEFAULT_SUPPLEMENTAL_PERCENT) percentageOverrides[liftKey] = (pick as number) / 100;
       }
@@ -365,8 +381,8 @@
     const next: Program = {
       programmingModel,
       leaderTrainingDays,
-      anchorTrainingDays: isBeginnerModel ? null : anchorTrainingDays,
-      deloadTrainingDays: isBeginnerModel ? null : deloadTrainingDaysPick,
+      anchorTrainingDays: isStandalone ? null : anchorTrainingDays,
+      deloadTrainingDays: isStandalone ? null : deloadTrainingDaysPick,
       tmTestTrainingDays: tmTestTrainingDaysPick,
       leaderTemplateId,
       anchorTemplateId,
@@ -431,7 +447,7 @@
   </section>
 
   <section>
-    <h2>{isBeginnerModel ? "Training Days" : "Leader Training Days"}</h2>
+    <h2>{isStandalone ? "Training Days" : "Leader Training Days"}</h2>
     <label class="picker-row">
       <span>Days per week</span>
       <select value={leaderTrainingDays} on:change={(e) => (leaderTrainingDaysPick = Number(e.currentTarget.value) as 2 | 3 | 4)}>
@@ -443,7 +459,7 @@
   </section>
 
   <section>
-    <h2>{isBeginnerModel ? "Template" : "Leader Template"}</h2>
+    <h2>{isStandalone ? "Template" : "Leader Template"}</h2>
     <label class="picker-row">
       <span>Template</span>
       <select value={leaderTemplateId} on:change={(e) => (leaderTemplateIdPick = e.currentTarget.value)}>
@@ -487,9 +503,9 @@
           </label>
         {/if}
         {#if offersSupplementalPercentage}
-          {#each LIFT_ORDER as liftKey (liftKey)}
+          {#each percentageLiftKeys as liftKey (liftKey)}
             <label class="picker-row">
-              <span>{LIFT_LABELS[liftKey]} Supplemental %</span>
+              <span>{supplementalPercentLabel(liftKey)}</span>
               <select bind:value={supplementalPercentPicks[liftKey]}>
                 {#each SUPPLEMENTAL_PERCENT_ITEMS as item}
                   <option value={item.value}>{item.label}</option>
@@ -568,7 +584,7 @@
     {/if}
   </section>
 
-  {#if !isBeginnerModel}
+  {#if !isStandalone}
     <section>
       <h2>7th Week Deload</h2>
       <label class="picker-row">

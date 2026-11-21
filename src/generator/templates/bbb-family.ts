@@ -52,6 +52,20 @@ export const BBB_SESSION_SHAPE: SessionShape = {
   },
 };
 
+/** Slightly Less BBB's four-day variations print Squat, Press, Deadlift,
+ * Bench (Mon/Tue/Thu/Fri) — the order matters for the two-lift variation,
+ * where bench supplemental on press day precedes bench day. */
+export const BBB_SLIGHTLY_LESS_FOUR_DAY_SHAPE: SessionShape = {
+  4: {
+    workouts: [
+      { label: "Squat", liftKeys: ["squat"] },
+      { label: "Press", liftKeys: ["press"] },
+      { label: "Deadlift", liftKeys: ["deadlift"] },
+      { label: "Bench Press", liftKeys: ["bench"] },
+    ],
+  },
+};
+
 function fives(...percentages: number[]): MainWorkSet[] {
   return percentages.map((tmPercentage) => ({ tmPercentage, reps: 5, isPrSet: false }));
 }

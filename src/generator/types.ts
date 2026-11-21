@@ -85,7 +85,7 @@ export function resolveByRole<T>(field: ByRole<T>, role: TemplateRole): T {
 // Programming model
 // ---------------------------------------------------------------------------
 
-export type ProgrammingModelId = "beginner" | "2+1" | "2+2" | "3+2";
+export type ProgrammingModelId = "beginner" | "2+1" | "2+2" | "3+2" | "challenge";
 
 export interface ProgrammingPhase {
   role: TemplateRole;
@@ -112,7 +112,14 @@ export const PROGRAMMING_MODELS: Record<ProgrammingModelId, ProgrammingPhase[]> 
     { role: "leader", cycles: 3 },
     { role: "anchor", cycles: 2 },
   ],
+  // A fixed three-cycle program with no Anchor — the BBB Challenge.
+  challenge: [{ role: "standalone", cycles: 3 }],
 };
+
+/** True when a model has no Leader/Anchor split — a single standalone phase. */
+export function isStandaloneModel(programmingModel: ProgrammingModelId): boolean {
+  return PROGRAMMING_MODELS[programmingModel].every((phase) => phase.role === "standalone");
+}
 
 /**
  * The total number of cycles a programming model runs — every phase's
@@ -152,8 +159,19 @@ export type TmPercentage = { kind: "fixed"; value: number } | { kind: "range"; m
 export interface Workout {
   /** Display label, e.g. "Workout A". */
   label: string;
+  /** Every lift trained in this workout, in the order they're performed. */
   liftKeys: LiftKey[];
+  /**
+   * Which work each lift gets here, when not both. "main" is main work only
+   * (no supplemental); "supplemental" is supplemental only — no warm-up, no
+   * main work, and the appearance doesn't advance that lift's progression
+   * step. Full Body BBB pairs one lift's main work with another lift's 5x10
+   * in every session.
+   */
+  workByLift?: Partial<Record<LiftKey, WorkoutLiftWork>>;
 }
+
+export type WorkoutLiftWork = "main" | "supplemental";
 
 /**
  * Either a fixed, calendar-week-independent sequence of workouts repeated
@@ -230,16 +248,30 @@ export type SupplementalPrescription =
   | { sets: number; reps: number; source: "firstSetLast" | "secondSetLast" }
   | { sets: number; reps: number; source: "percentageOfTrainingMax"; percentageOfTrainingMax: number }
   | { sets: number; reps: number; source: "percentageOfTrainingMaxByStep"; percentagesByStep: number[] }
+  | { sets: number; reps: number; source: "percentageOfTrainingMaxByCycle"; percentagesByCycle: number[] }
   | { reps: number; source: "percentageOfTrainingMaxPerSet"; percentagesPerSet: number[] };
 
 export type SupplementalSourceKind = SupplementalPrescription["source"];
 
-/** One named supplemental scheme a template offers as an option. */
-export interface SupplementalSchemeChoice {
-  /** Display label for the option picker. */
-  label: string;
+/**
+ * One lift's supplemental work within a per-lift layout. `fromLiftKey` is
+ * the lift actually performed for the supplemental sets, when it isn't the
+ * day's main lift — e.g. squat 5x10 on deadlift day.
+ */
+export interface LiftSupplemental {
   prescription: SupplementalPrescription;
+  fromLiftKey?: LiftKey;
 }
+
+/**
+ * One named supplemental scheme a template offers as an option: either one
+ * prescription for every lift, or a per-lift layout (Slightly Less BBB's
+ * mixed and two-lift variations, where the scheme or the lift differs by
+ * day).
+ */
+export type SupplementalSchemeChoice =
+  | { label: string; prescription: SupplementalPrescription }
+  | { label: string; byLift: Record<LiftKey, LiftSupplemental> };
 
 /**
  * Beginner assigns each lift 85% or 90% individually (docs/templates/
@@ -340,6 +372,13 @@ export interface Template {
    * another that forbids it.
    */
   allowsOppositeSupplementalLift?: boolean;
+  /**
+   * The programming models this template may run under. Unset means any
+   * model whose phases match its role eligibility. A setup constraint —
+   * Beginner runs only under the Beginner model, BBB Challenge only under
+   * the Challenge model.
+   */
+  programmingModels?: ProgrammingModelId[];
 
   sessionShape: SessionShape;
   mainWorkScheme: MainWorkScheme;

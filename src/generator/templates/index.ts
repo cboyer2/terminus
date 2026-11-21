@@ -2,10 +2,14 @@
 // changing the generator — see PRD §3's success criterion.
 
 import type { Template, TemplateId } from "../types";
+import { bbbChallengeTemplate } from "./bbb-challenge";
 import { bbbForeverTemplate } from "./bbb-forever";
 import { bbbFslTemplate } from "./bbb-fsl";
+import { bbbFullBodyTemplate } from "./bbb-full-body";
+import { bbbMixedTemplate } from "./bbb-mixed";
 import { bbbOriginalTemplate } from "./bbb-original";
 import { bbbSlightlyLessTemplate } from "./bbb-slightly-less";
+import { bbbTwoLiftTemplate } from "./bbb-two-lift";
 import { beginnerTemplate } from "./beginner";
 import { original531AbTemplate } from "./original-531-ab";
 import { original53110RepTemplate } from "./original-531-10rep";
@@ -16,7 +20,11 @@ export const TEMPLATES: Record<TemplateId, Template> = {
   [bbbOriginalTemplate.id]: bbbOriginalTemplate,
   [bbbForeverTemplate.id]: bbbForeverTemplate,
   [bbbSlightlyLessTemplate.id]: bbbSlightlyLessTemplate,
+  [bbbMixedTemplate.id]: bbbMixedTemplate,
+  [bbbTwoLiftTemplate.id]: bbbTwoLiftTemplate,
   [bbbFslTemplate.id]: bbbFslTemplate,
+  [bbbFullBodyTemplate.id]: bbbFullBodyTemplate,
+  [bbbChallengeTemplate.id]: bbbChallengeTemplate,
   [original531Template.id]: original531Template,
   [original53110RepTemplate.id]: original53110RepTemplate,
   [original531AbTemplate.id]: original531AbTemplate,
