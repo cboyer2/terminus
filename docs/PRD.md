@@ -12,7 +12,7 @@ A personal planning tool that turns a set of maxes and a chosen 5/3/1 template i
 
 **Core loop:**
 
-1. **Choose a programming model.** Four options, each fixing the cycle count:
+1. **Choose a programming model.** Five options, each fixing the cycle count:
 
    | Model | Structure | Cycles |
    |---|---|---|
@@ -20,6 +20,7 @@ A personal planning tool that turns a set of maxes and a chosen 5/3/1 template i
    | 2 + 1 | 2 Leader cycles, 1 Anchor cycle | 3 |
    | 2 + 2 | 2 Leader cycles, 2 Anchor cycles | 4 |
    | 3 + 2 | 3 Leader cycles, 2 Anchor cycles | 5 |
+   | BBB Challenge | single template (BBB Challenge), no Leader/Anchor split | 3 |
 
 2. **Choose training days.** Between 2 and 4. This drives how lifts map to sessions and filters which templates are available.
 3. **Choose templates.** Beginner model uses the Beginner template and skips this step. Otherwise pick the Leader first, from templates compatible with the chosen day count; the Anchor list is then filtered to those the Leader can be followed by. A template may be Leader-eligible, Anchor-eligible, or both; the Beginner template is neither, and is only valid with the Beginner model.

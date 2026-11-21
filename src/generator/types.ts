@@ -24,9 +24,8 @@
 // ---------------------------------------------------------------------------
 
 /**
- * Stable identifiers the generator keys on. Matches the check constraint on
- * public.lifts.lift_key. Widen this union — and the constraint — together
- * when a template introduces a new lift.
+ * Stable identifiers the generator keys on. Widen this union when a
+ * template introduces a new lift.
  */
 export type LiftKey = "squat" | "bench" | "press" | "deadlift";
 
@@ -86,7 +85,7 @@ export function resolveByRole<T>(field: ByRole<T>, role: TemplateRole): T {
 // Programming model
 // ---------------------------------------------------------------------------
 
-export type ProgrammingModelId = "beginner" | "2+1" | "2+2" | "3+2";
+export type ProgrammingModelId = "beginner" | "2+1" | "2+2" | "3+2" | "challenge";
 
 export interface ProgrammingPhase {
   role: TemplateRole;
@@ -113,7 +112,14 @@ export const PROGRAMMING_MODELS: Record<ProgrammingModelId, ProgrammingPhase[]> 
     { role: "leader", cycles: 3 },
     { role: "anchor", cycles: 2 },
   ],
+  // A fixed three-cycle program with no Anchor — the BBB Challenge.
+  challenge: [{ role: "standalone", cycles: 3 }],
 };
+
+/** True when a model has no Leader/Anchor split — a single standalone phase. */
+export function isStandaloneModel(programmingModel: ProgrammingModelId): boolean {
+  return PROGRAMMING_MODELS[programmingModel].every((phase) => phase.role === "standalone");
+}
 
 /**
  * The total number of cycles a programming model runs — every phase's
@@ -153,8 +159,19 @@ export type TmPercentage = { kind: "fixed"; value: number } | { kind: "range"; m
 export interface Workout {
   /** Display label, e.g. "Workout A". */
   label: string;
+  /** Every lift trained in this workout, in the order they're performed. */
   liftKeys: LiftKey[];
+  /**
+   * Which work each lift gets here, when not both. "main" is main work only
+   * (no supplemental); "supplemental" is supplemental only — no warm-up, no
+   * main work, and the appearance doesn't advance that lift's progression
+   * step. Full Body BBB pairs one lift's main work with another lift's 5x10
+   * in every session.
+   */
+  workByLift?: Partial<Record<LiftKey, WorkoutLiftWork>>;
 }
+
+export type WorkoutLiftWork = "main" | "supplemental";
 
 /**
  * Either a fixed, calendar-week-independent sequence of workouts repeated
@@ -209,9 +226,10 @@ export type MainWorkBase = "3/5/1" | "classic" | "prSet";
  */
 export type MainWorkScheme =
   | ByRole<MainWorkSet[][]>
-  | { byMainWorkBase: Record<MainWorkBase, MainWorkSet[][]>; defaultMainWorkBase: MainWorkBase };
-
-export type SupplementalSourceKind = "firstSetLast" | "secondSetLast" | "percentageOfTrainingMax";
+  // Partial: a template offers only the bases its own section confirms
+  // (e.g. bbb-fsl offers classic and 3/5/1 but not the PR-set base). A
+  // saved base the template doesn't offer falls back to the default.
+  | { byMainWorkBase: Partial<Record<MainWorkBase, MainWorkSet[][]>>; defaultMainWorkBase: MainWorkBase };
 
 /**
  * FSL/SSL derive their percentage from that week's own main-work sets, so
@@ -219,10 +237,41 @@ export type SupplementalSourceKind = "firstSetLast" | "secondSetLast" | "percent
  * flat supplemental scheme) has no main-work set to derive from, so it must
  * state one — a template default, overridable per lift via
  * `program.options` (docs/templates/boring-but-big.md "Options").
+ *
+ * "percentageOfTrainingMaxByStep" is Forever BBB's week-varying scheme —
+ * one percentage per progression step, not overridable per lift.
+ * "percentageOfTrainingMaxPerSet" is Slightly Less BBB's 1x10 ascending
+ * (or descending) scheme — every set has its own percentage, the same in
+ * every progression step, so the set count is the list's length.
  */
 export type SupplementalPrescription =
   | { sets: number; reps: number; source: "firstSetLast" | "secondSetLast" }
-  | { sets: number; reps: number; source: "percentageOfTrainingMax"; percentageOfTrainingMax: number };
+  | { sets: number; reps: number; source: "percentageOfTrainingMax"; percentageOfTrainingMax: number }
+  | { sets: number; reps: number; source: "percentageOfTrainingMaxByStep"; percentagesByStep: number[] }
+  | { sets: number; reps: number; source: "percentageOfTrainingMaxByCycle"; percentagesByCycle: number[] }
+  | { reps: number; source: "percentageOfTrainingMaxPerSet"; percentagesPerSet: number[] };
+
+export type SupplementalSourceKind = SupplementalPrescription["source"];
+
+/**
+ * One lift's supplemental work within a per-lift layout. `fromLiftKey` is
+ * the lift actually performed for the supplemental sets, when it isn't the
+ * day's main lift — e.g. squat 5x10 on deadlift day.
+ */
+export interface LiftSupplemental {
+  prescription: SupplementalPrescription;
+  fromLiftKey?: LiftKey;
+}
+
+/**
+ * One named supplemental scheme a template offers as an option: either one
+ * prescription for every lift, or a per-lift layout (Slightly Less BBB's
+ * mixed and two-lift variations, where the scheme or the lift differs by
+ * day).
+ */
+export type SupplementalSchemeChoice =
+  | { label: string; prescription: SupplementalPrescription }
+  | { label: string; byLift: Record<LiftKey, LiftSupplemental> };
 
 /**
  * Beginner assigns each lift 85% or 90% individually (docs/templates/
@@ -232,11 +281,18 @@ export type SupplementalPrescription =
  * just supplies one SupplementalPrescription. "none" is Original 5/3/1's
  * case — no template in that family has any supplemental work at all,
  * rather than a prescription with zero sets standing in for "none".
+ *
+ * The `bySupplementalScheme` form is a knob the book tells you to set —
+ * Forever BBB's intensity and set count, Slightly Less BBB's three schemes —
+ * chosen via `program.options.supplementalScheme`. Same option-keyed
+ * convention as `MainWorkScheme`'s `byMainWorkBase`, told apart by its own
+ * distinct key.
  */
 export type Supplemental =
   | "none"
   | SupplementalPrescription
-  | { atLowerTmPercentage: SupplementalPrescription; atHigherTmPercentage: SupplementalPrescription };
+  | { atLowerTmPercentage: SupplementalPrescription; atHigherTmPercentage: SupplementalPrescription }
+  | { bySupplementalScheme: Record<string, SupplementalSchemeChoice>; defaultSupplementalScheme: string };
 
 export interface AssistanceTarget {
   /** e.g. "push", "pull", "single-leg-core" — Original 5/3/1's categories; Beginner's own groupings reuse this shape. */
@@ -308,6 +364,21 @@ export interface Template {
    * own assistance table has no bearing on it.
    */
   anchorAssistanceFollowsLeader?: boolean;
+  /**
+   * Whether `program.options.supplementalOppositeLift` applies to this
+   * template — Original BBB permits supplemental on the opposite lift
+   * (bench main, press supplemental); Forever BBB and FSL don't. Read by
+   * the generator so a saved toggle from one template can't leak into
+   * another that forbids it.
+   */
+  allowsOppositeSupplementalLift?: boolean;
+  /**
+   * The programming models this template may run under. Unset means any
+   * model whose phases match its role eligibility. A setup constraint —
+   * Beginner runs only under the Beginner model, BBB Challenge only under
+   * the Challenge model.
+   */
+  programmingModels?: ProgrammingModelId[];
 
   sessionShape: SessionShape;
   mainWorkScheme: MainWorkScheme;

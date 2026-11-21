@@ -3,7 +3,8 @@
 // progression steps per lift, not three calendar weeks" and "Weeks are not
 // all the same shape".
 
-import { PROGRAMMING_MODELS } from "../generator/types";
+import { TEMPLATES } from "../generator/templates";
+import { PROGRAMMING_MODELS, isStandaloneModel } from "../generator/types";
 import type { LiftKey, PlannedSet, Program, ProgressionStep, Session } from "../generator/types";
 import { LIFT_ORDER } from "../lift-labels";
 
@@ -104,7 +105,9 @@ export function isAnchorCycle(cycleNumber: number, programmingModel: Program["pr
 export function phaseLabel(session: Session, program: Program): string {
   const kind = session.lifts[0]?.step.kind;
   if (kind === "deload" || kind === "tmTest" || kind === "prTest") return "7th Week Protocol";
-  if (program.programmingModel === "beginner") return "Beginner";
+  // A standalone model (Beginner, BBB Challenge) has no Leader/Anchor phase
+  // to name, so the template stands in for it.
+  if (isStandaloneModel(program.programmingModel)) return TEMPLATES[program.leaderTemplateId]?.name ?? "Standalone";
   return isAnchorCycle(session.cycleNumber, program.programmingModel) ? "Anchor" : "Leader";
 }
 

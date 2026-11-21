@@ -417,10 +417,16 @@ rather than alarming.
   can't express these.
 - **Conditional sets don't exist yet.** Jokers are performed only if the PR
   set went well — a set that may or may not happen has no representation.
-- **Supplemental is untested.** BBB's flat percentage and Original 5/3/1's
-  absence of supplemental work exercise none of the hard cases: percentage
-  varying by week or cycle, per-lift percentages, supplemental on the opposite
-  lift, or supplemental drawn from the main work's own first set.
+- **Supplemental is now exercised by the BBB family.** Covered: a flat or
+  per-lift percentage, percentages varying by week (Forever BBB) or by cycle
+  (BBB Challenge), a percentage per set (1×10 ascending), First Set Last,
+  named schemes chosen as an option, per-lift layouts where the scheme or the
+  lift performed differs by day (Slightly Less BBB's mixed and two-lift
+  variations), and sessions where one lift does main work and another only
+  supplemental (Full Body BBB, via `Workout.workByLift`). Still missing: the
+  deadlift note's second training max (supplemental based on an estimated
+  double-overhand deadlift), and mixing a Forever-style percentage on one day
+  with a flat one on another.
 
 **Consequence for build order:** let these types churn while they are only a
 generator and a fixture. Build the schema, `calc.ts`, the Beginner template

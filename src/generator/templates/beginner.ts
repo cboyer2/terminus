@@ -8,6 +8,7 @@ export const beginnerTemplate: Template = {
   id: "beginner",
   name: "Beginner",
   roleEligibility: "neither",
+  programmingModels: ["beginner"],
   compatibleAnchorIds: [],
   supportedDayCounts: [3],
   // No single plan-wide default in the book — it assigns 90% to the

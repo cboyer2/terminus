@@ -1,13 +1,13 @@
 // Advancing a stored seed — PRD §1.9's paths. Numbers in, numbers out, same
-// as every other generator module; no React, no Supabase, no storage.
-// `use-lifts.ts` is the only thing that calls these and then persists the
-// result via saveLift — this module never touches state.
+// as every other generator module; no Svelte, no storage. The Maxes view's
+// LiftRow calls these and persists the result via stateStore.saveLift —
+// this module never touches state.
 //
 // A third path, progressFailedTest (a failed 7th Week TM test: estimate a
 // fresh 1RM from the weight/reps managed, then re-derive the seed at the
 // lift's own already-effective percentage), used to live here. Removed:
 // once it stopped asking for a fresh percentage choice, it became
-// byte-for-byte the same computation as maxes.tsx's "enter a max" form —
+// byte-for-byte the same computation as the Maxes view's "enter a max" form —
 // oneRepMaxFromPerformance then trainingMaxSeedFromOneRepMax at the same
 // percentage — so the Failed TM Test control in the UI was pure
 // duplication and came out too. See docs/plan-structure.md "Reading the

@@ -12,6 +12,7 @@ import {
   type JumpsOrThrows,
   type Lift,
   type LiftKey,
+  type LiftSupplemental,
   type MainWorkBase,
   type MainWorkScheme,
   type MainWorkSet,
@@ -25,6 +26,7 @@ import {
   type Template,
   type TemplateRole,
   type WarmupExercise,
+  type WorkoutLiftWork,
   PROGRAMMING_MODELS,
   resolveByRole,
 } from "./types";
@@ -76,8 +78,8 @@ const OPPOSITE_LIFT: Record<LiftKey, LiftKey> = {
  * toggle (not per-lift) — turning it on swaps every session's supplemental
  * basis to that session's paired lift.
  */
-function supplementalBasisLiftKey(liftKey: LiftKey, options: Record<string, unknown>): LiftKey {
-  return options.supplementalOppositeLift === true ? OPPOSITE_LIFT[liftKey] : liftKey;
+function supplementalBasisLiftKey(liftKey: LiftKey, template: Template, options: Record<string, unknown>): LiftKey {
+  return template.allowsOppositeSupplementalLift === true && options.supplementalOppositeLift === true ? OPPOSITE_LIFT[liftKey] : liftKey;
 }
 
 /**
@@ -98,22 +100,29 @@ function resolveSupplemental(
   template: Template,
   liftKey: LiftKey,
   options: Record<string, unknown>
-): "none" | SupplementalPrescription {
+): "none" | LiftSupplemental {
   if (supplemental === "none") {
     return "none";
   }
-  if ("sets" in supplemental) {
-    return supplemental;
+  if ("source" in supplemental) {
+    return { prescription: supplemental };
+  }
+  if ("bySupplementalScheme" in supplemental) {
+    const picked = options.supplementalScheme as string | undefined;
+    const choice =
+      (picked !== undefined ? supplemental.bySupplementalScheme[picked] : undefined) ??
+      supplemental.bySupplementalScheme[supplemental.defaultSupplementalScheme];
+    return "byLift" in choice ? choice.byLift[liftKey] : { prescription: choice.prescription };
   }
   const sourceOverrides = options.supplementalSourceByLift as Partial<Record<LiftKey, "firstSetLast" | "secondSetLast">> | undefined;
   const sourceOverride = sourceOverrides?.[liftKey];
-  if (sourceOverride === "firstSetLast") return supplemental.atHigherTmPercentage;
-  if (sourceOverride === "secondSetLast") return supplemental.atLowerTmPercentage;
+  if (sourceOverride === "firstSetLast") return { prescription: supplemental.atHigherTmPercentage };
+  if (sourceOverride === "secondSetLast") return { prescription: supplemental.atLowerTmPercentage };
   if (template.tmPercentage.kind !== "range") {
     throw new Error(`${template.id}: percentage-keyed supplemental requires a percentage range`);
   }
   const midpoint = (template.tmPercentage.min + template.tmPercentage.max) / 2;
-  return percentage <= midpoint ? supplemental.atLowerTmPercentage : supplemental.atHigherTmPercentage;
+  return { prescription: percentage <= midpoint ? supplemental.atLowerTmPercentage : supplemental.atHigherTmPercentage };
 }
 
 /**
@@ -136,8 +145,12 @@ function applyFinalSetPr(weekSets: MainWorkSet[]): MainWorkSet[] {
  */
 function resolveMainWorkScheme(scheme: MainWorkScheme, role: TemplateRole, options: Record<string, unknown>): MainWorkSet[][] {
   if ("byMainWorkBase" in scheme) {
-    const base = (options.mainWorkBase as MainWorkBase | undefined) ?? scheme.defaultMainWorkBase;
-    return scheme.byMainWorkBase[base];
+    const picked = options.mainWorkBase as MainWorkBase | undefined;
+    const sets = (picked !== undefined ? scheme.byMainWorkBase[picked] : undefined) ?? scheme.byMainWorkBase[scheme.defaultMainWorkBase];
+    if (!sets) {
+      throw new Error(`Main work scheme has no table for its own default base: ${scheme.defaultMainWorkBase}`);
+    }
+    return sets;
   }
   return resolveByRole(scheme, role);
 }
@@ -156,29 +169,57 @@ function resolveAssistance(assistance: AssistancePrescription, role: TemplateRol
 }
 
 /**
- * FSL/SSL derive their percentage from the week's own main-work sets.
+ * Each supplemental set's percentage of the training max, in order.
+ *
+ * FSL/SSL derive theirs from the week's own main-work sets.
  * "percentageOfTrainingMax" (BBB's flat scheme) has no such set to derive
  * from, so it falls back to the prescription's own percentage, overridable
  * per lift via `program.options.supplementalPercentageByLift` — BBB's
  * "50-55% recommended, lower for squat/deadlift" guidance (docs/templates/
- * boring-but-big.md "Options").
+ * boring-but-big.md "Options"). "percentageOfTrainingMaxByStep" (Forever
+ * BBB) reads the progression step; "percentageOfTrainingMaxByCycle" (BBB
+ * Challenge) reads the cycle within the phase; "percentageOfTrainingMaxPerSet" (Slightly
+ * Less BBB's 1x10 ascending) gives every set its own percentage.
+ *
+ * `program.options.supplementalSetCountByLift` (Beginner's stall remedy)
+ * overrides the set count for every source except per-set, whose count is
+ * the shape of the prescription itself.
  */
-function supplementalBasisPercentage(
+function supplementalSetPercentages(
   weekSets: MainWorkSet[],
+  step: 0 | 1 | 2,
+  cycleInPhase: number,
   prescription: SupplementalPrescription,
   liftKey: LiftKey,
   options: Record<string, unknown>
-): number {
+): number[] {
+  if (prescription.source === "percentageOfTrainingMaxPerSet") {
+    return prescription.percentagesPerSet;
+  }
+  const setCountOverrides = options.supplementalSetCountByLift as Partial<Record<LiftKey, number>> | undefined;
+  const setCount = setCountOverrides?.[liftKey] ?? prescription.sets;
+  let percentage: number;
   switch (prescription.source) {
     case "firstSetLast":
-      return weekSets[0].tmPercentage;
+      percentage = weekSets[0].tmPercentage;
+      break;
     case "secondSetLast":
-      return weekSets[1].tmPercentage;
+      percentage = weekSets[1].tmPercentage;
+      break;
     case "percentageOfTrainingMax": {
       const overrides = options.supplementalPercentageByLift as Partial<Record<LiftKey, number>> | undefined;
-      return overrides?.[liftKey] ?? prescription.percentageOfTrainingMax;
+      percentage = overrides?.[liftKey] ?? prescription.percentageOfTrainingMax;
+      break;
     }
+    case "percentageOfTrainingMaxByStep":
+      percentage = prescription.percentagesByStep[step];
+      break;
+    case "percentageOfTrainingMaxByCycle":
+      // Clamped: a phase longer than the printed list repeats its last value.
+      percentage = prescription.percentagesByCycle[Math.min(cycleInPhase, prescription.percentagesByCycle.length - 1)];
+      break;
   }
+  return Array.from({ length: setCount }, () => percentage);
 }
 
 export function liftsByKey(lifts: Lift[]): Map<LiftKey, Lift> {
@@ -241,7 +282,10 @@ export function buildMainCycleSessions(
   // anchorAssistanceFollowsLeader (see that field's doc comment in
   // types.ts). Every other prescription field still resolves from
   // `template` itself; only assistance can come from elsewhere.
-  assistanceSourceTemplate: Template = template
+  assistanceSourceTemplate: Template = template,
+  // 0-based cycle within the current phase — what a by-cycle supplemental
+  // percentage (BBB Challenge) is indexed by.
+  cycleInPhase = 0
 ): { sessions: Session[]; nextSessionNumber: number } {
   // The Leader and Anchor phases may run at different day counts (e.g. a
   // 3-day Leader into a 4-day Anchor) — see docs/ARCHITECTURE.md §3.
@@ -267,40 +311,44 @@ export function buildMainCycleSessions(
   const sessions: Session[] = [];
   let sessionNumber = startingSessionNumber;
 
-  function buildLiftEntry(liftKey: LiftKey, step: 0 | 1 | 2): SessionLiftEntry {
+  function buildLiftEntry(liftKey: LiftKey, step: 0 | 1 | 2, work?: WorkoutLiftWork): SessionLiftEntry {
+    const supplementalOnly = work === "supplemental";
     const weekSets = mainWorkScheme[step];
     const lift = requireLift(lifts, liftKey);
     const tm = trainingMax(lift.trainingMaxSeed, lift.increment, cycleIndex);
     const percentage = effectivePercentage(lift, program);
-    const prescription = resolveSupplemental(supplemental, percentage, template, liftKey, program.options);
+    const liftSupplemental = resolveSupplemental(supplemental, percentage, template, liftKey, program.options);
 
     const prSetOverrides = program.options.prSetOnFinalSetByLift as Partial<Record<LiftKey, boolean>> | undefined;
     const effectiveWeekSets = prSetOverrides?.[liftKey] ? applyFinalSetPr(weekSets) : weekSets;
 
-    const supplementalLiftKey = supplementalBasisLiftKey(liftKey, program.options);
+    // A per-lift layout naming another lift wins over the opposite-lift toggle.
+    const supplementalLiftKey =
+      liftSupplemental !== "none" && liftSupplemental.fromLiftKey !== undefined
+        ? liftSupplemental.fromLiftKey
+        : supplementalBasisLiftKey(liftKey, template, program.options);
 
     let supplementalSets: PlannedSet[] = [];
-    if (prescription !== "none") {
-      const basisPercentage = supplementalBasisPercentage(effectiveWeekSets, prescription, liftKey, program.options);
+    if (liftSupplemental !== "none" && work !== "main") {
+      const { prescription } = liftSupplemental;
       const supplementalLift = supplementalLiftKey === liftKey ? lift : requireLift(lifts, supplementalLiftKey);
       const supplementalTm = trainingMax(supplementalLift.trainingMaxSeed, supplementalLift.increment, cycleIndex);
-      const supplementalWeight = workingWeight(supplementalTm, basisPercentage);
-      const setCountOverrides = program.options.supplementalSetCountByLift as Partial<Record<LiftKey, number>> | undefined;
-      const effectiveSets = setCountOverrides?.[liftKey] ?? prescription.sets;
-      supplementalSets = Array.from({ length: effectiveSets }, () => ({
-        tmPercentage: basisPercentage,
-        workingWeight: supplementalWeight,
-        reps: prescription.reps,
-        isPrSet: false,
-      }));
+      supplementalSets = supplementalSetPercentages(effectiveWeekSets, step, cycleInPhase, prescription, liftKey, program.options).map(
+        (setPercentage) => ({
+          tmPercentage: setPercentage,
+          workingWeight: workingWeight(supplementalTm, setPercentage),
+          reps: prescription.reps,
+          isPrSet: false,
+        })
+      );
     }
 
     return {
       liftKey,
       step: { kind: "main", index: step },
       trainingMax: tm,
-      warmupSets: buildWarmupSets(tm),
-      mainWork: buildPlannedSets(effectiveWeekSets, tm),
+      warmupSets: supplementalOnly ? [] : buildWarmupSets(tm),
+      mainWork: supplementalOnly ? [] : buildPlannedSets(effectiveWeekSets, tm),
       supplemental: supplementalSets,
       supplementalLiftKey,
     };
@@ -312,7 +360,9 @@ export function buildMainCycleSessions(
     // template used before bbb-original's 3-day rotation.
     for (let step = 0; step < mainWorkScheme.length; step++) {
       for (const workout of shape.workouts) {
-        const liftEntries = workout.liftKeys.map((liftKey) => buildLiftEntry(liftKey, step as 0 | 1 | 2));
+        const liftEntries = workout.liftKeys.map((liftKey) =>
+          buildLiftEntry(liftKey, step as 0 | 1 | 2, workout.workByLift?.[liftKey])
+        );
         sessions.push({ sessionNumber: sessionNumber++, cycleNumber, lifts: liftEntries, assistance, jumpsOrThrows, warmupCircuit, conditioning });
       }
     }
@@ -329,9 +379,15 @@ export function buildMainCycleSessions(
     for (const weekWorkouts of shape.weeks) {
       for (const workout of weekWorkouts) {
         const liftEntries = workout.liftKeys.map((liftKey) => {
-          const step = (appearanceCount.get(liftKey) ?? 0) as 0 | 1 | 2;
-          appearanceCount.set(liftKey, step + 1);
-          return buildLiftEntry(liftKey, step);
+          const count = appearanceCount.get(liftKey) ?? 0;
+          const work = workout.workByLift?.[liftKey];
+          if (work === "supplemental") {
+            // Doesn't advance the lift's step; reports the step its next
+            // (or, after the last, most recent) main appearance uses.
+            return buildLiftEntry(liftKey, Math.min(count, mainWorkScheme.length - 1) as 0 | 1 | 2, work);
+          }
+          appearanceCount.set(liftKey, count + 1);
+          return buildLiftEntry(liftKey, count as 0 | 1 | 2, work);
         });
         sessions.push({ sessionNumber: sessionNumber++, cycleNumber, lifts: liftEntries, assistance, jumpsOrThrows, warmupCircuit, conditioning });
       }
@@ -523,7 +579,7 @@ export function generatePlan(lifts: Lift[], program: Program): Plan {
     const assistanceSourceTemplate = phase.role === "anchor" && leaderTemplate.anchorAssistanceFollowsLeader ? leaderTemplate : template;
 
     for (let i = 0; i < phase.cycles; i++) {
-      const built = buildMainCycleSessions(template, phase.role, liftMap, program, cycleNumber, cycleIndex, sessionNumber, assistanceSourceTemplate);
+      const built = buildMainCycleSessions(template, phase.role, liftMap, program, cycleNumber, cycleIndex, sessionNumber, assistanceSourceTemplate, i);
       sessions.push(...built.sessions);
       sessionNumber = built.nextSessionNumber;
       cycleNumber++;
