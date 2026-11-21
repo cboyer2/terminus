@@ -117,13 +117,26 @@ describe("bbb-fsl", () => {
 });
 
 describe("bbb-forever", () => {
-  it("main work is the printed 3/5/1 ordering, regardless of a saved base", () => {
-    const sessions = runCycle(bbbForeverTemplate, { mainWorkBase: "classic" });
-    expect(mainWeightsFor(sessions, "squat")).toEqual([
+  it("main work defaults to the printed 3/5/1 ordering", () => {
+    expect(mainWeightsFor(runCycle(bbbForeverTemplate), "squat")).toEqual([
       [280, 320, 360],
       [260, 300, 340],
       [300, 340, 380],
     ]);
+  });
+
+  it("classic ordering keeps the supplemental tied to the week (60/50/70%)", () => {
+    const sessions = runCycle(bbbForeverTemplate, { mainWorkBase: "classic" });
+    expect(mainWeightsFor(sessions, "squat")).toEqual([
+      [260, 300, 340],
+      [280, 320, 360],
+      [300, 340, 380],
+    ]);
+    expect(supplementalFor(sessions, "squat")).toEqual([tens(240, 5), tens(200, 5), tens(280, 5)]);
+  });
+
+  it("a saved PR-set base it doesn't offer falls back to 3/5/1", () => {
+    expect(mainWeightsFor(runCycle(bbbForeverTemplate, { mainWorkBase: "prSet" }), "squat")[0]).toEqual([280, 320, 360]);
   });
 
   it("standard (default): 5x10 at 60/50/70% by week", () => {
@@ -163,10 +176,18 @@ describe("bbb-forever", () => {
 });
 
 describe("bbb-slightly-less", () => {
-  it("main work is the classic ordering", () => {
+  it("main work defaults to the classic ordering", () => {
     expect(mainWeightsFor(runCycle(bbbSlightlyLessTemplate), "squat")).toEqual([
       [260, 300, 340],
       [280, 320, 360],
+      [300, 340, 380],
+    ]);
+  });
+
+  it("3/5/1 ordering is offered", () => {
+    expect(mainWeightsFor(runCycle(bbbSlightlyLessTemplate, { mainWorkBase: "3/5/1" }), "squat")).toEqual([
+      [280, 320, 360],
+      [260, 300, 340],
       [300, 340, 380],
     ]);
   });

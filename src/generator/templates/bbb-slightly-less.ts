@@ -10,6 +10,7 @@ import {
   BBB_COMPATIBLE_ANCHOR_IDS,
   BBB_CONDITIONING,
   BBB_JUMPS_OR_THROWS,
+  BBB_MAIN_WORK_3_5_1,
   BBB_MAIN_WORK_CLASSIC,
   BBB_SESSION_SHAPE,
   BBB_SUPPORTED_DAY_COUNTS,
@@ -25,9 +26,15 @@ export const bbbSlightlyLessTemplate: Template = {
 
   sessionShape: BBB_SESSION_SHAPE,
 
-  // Only the classic ordering appears in this section's worked examples;
-  // the spec says to scope the base option to what's confirmed.
-  mainWorkScheme: BBB_MAIN_WORK_CLASSIC,
+  // The section's worked examples use the classic ordering; 3/5/1 is
+  // offered too, per the owner.
+  mainWorkScheme: {
+    defaultMainWorkBase: "classic",
+    byMainWorkBase: {
+      classic: BBB_MAIN_WORK_CLASSIC,
+      "3/5/1": BBB_MAIN_WORK_3_5_1,
+    },
+  },
 
   supplemental: {
     defaultSupplementalScheme: "constant",

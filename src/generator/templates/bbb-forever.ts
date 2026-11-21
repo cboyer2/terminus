@@ -13,6 +13,7 @@ import {
   BBB_CONDITIONING,
   BBB_JUMPS_OR_THROWS,
   BBB_MAIN_WORK_3_5_1,
+  BBB_MAIN_WORK_CLASSIC,
   BBB_SESSION_SHAPE,
   BBB_SUPPORTED_DAY_COUNTS,
 } from "./bbb-family";
@@ -34,10 +35,17 @@ export const bbbForeverTemplate: Template = {
 
   sessionShape: BBB_SESSION_SHAPE,
 
-  // Only the printed 3/5/1 ordering: the supplemental percentages are
-  // printed against these weeks, so swapping the main-work order would
-  // re-pair them in a way the book doesn't show.
-  mainWorkScheme: BBB_MAIN_WORK_3_5_1,
+  // The examples are printed with 3/5/1 ordering; the book says to use the
+  // original 5/3/1 ordering instead if it suits you better. The
+  // supplemental percentages stay tied to the progression step either way,
+  // the same pairing the book prints for SLFBBB with the classic order.
+  mainWorkScheme: {
+    defaultMainWorkBase: "3/5/1",
+    byMainWorkBase: {
+      "3/5/1": BBB_MAIN_WORK_3_5_1,
+      classic: BBB_MAIN_WORK_CLASSIC,
+    },
+  },
 
   // Supplemental must use the same lift as the main work — no opposite
   // option here.
