@@ -76,8 +76,8 @@ const OPPOSITE_LIFT: Record<LiftKey, LiftKey> = {
  * toggle (not per-lift) — turning it on swaps every session's supplemental
  * basis to that session's paired lift.
  */
-function supplementalBasisLiftKey(liftKey: LiftKey, options: Record<string, unknown>): LiftKey {
-  return options.supplementalOppositeLift === true ? OPPOSITE_LIFT[liftKey] : liftKey;
+function supplementalBasisLiftKey(liftKey: LiftKey, template: Template, options: Record<string, unknown>): LiftKey {
+  return template.allowsOppositeSupplementalLift === true && options.supplementalOppositeLift === true ? OPPOSITE_LIFT[liftKey] : liftKey;
 }
 
 /**
@@ -102,8 +102,15 @@ function resolveSupplemental(
   if (supplemental === "none") {
     return "none";
   }
-  if ("sets" in supplemental) {
+  if ("source" in supplemental) {
     return supplemental;
+  }
+  if ("bySupplementalScheme" in supplemental) {
+    const picked = options.supplementalScheme as string | undefined;
+    const choice =
+      (picked !== undefined ? supplemental.bySupplementalScheme[picked] : undefined) ??
+      supplemental.bySupplementalScheme[supplemental.defaultSupplementalScheme];
+    return choice.prescription;
   }
   const sourceOverrides = options.supplementalSourceByLift as Partial<Record<LiftKey, "firstSetLast" | "secondSetLast">> | undefined;
   const sourceOverride = sourceOverrides?.[liftKey];
@@ -136,8 +143,12 @@ function applyFinalSetPr(weekSets: MainWorkSet[]): MainWorkSet[] {
  */
 function resolveMainWorkScheme(scheme: MainWorkScheme, role: TemplateRole, options: Record<string, unknown>): MainWorkSet[][] {
   if ("byMainWorkBase" in scheme) {
-    const base = (options.mainWorkBase as MainWorkBase | undefined) ?? scheme.defaultMainWorkBase;
-    return scheme.byMainWorkBase[base];
+    const picked = options.mainWorkBase as MainWorkBase | undefined;
+    const sets = (picked !== undefined ? scheme.byMainWorkBase[picked] : undefined) ?? scheme.byMainWorkBase[scheme.defaultMainWorkBase];
+    if (!sets) {
+      throw new Error(`Main work scheme has no table for its own default base: ${scheme.defaultMainWorkBase}`);
+    }
+    return sets;
   }
   return resolveByRole(scheme, role);
 }
@@ -156,29 +167,51 @@ function resolveAssistance(assistance: AssistancePrescription, role: TemplateRol
 }
 
 /**
- * FSL/SSL derive their percentage from the week's own main-work sets.
+ * Each supplemental set's percentage of the training max, in order.
+ *
+ * FSL/SSL derive theirs from the week's own main-work sets.
  * "percentageOfTrainingMax" (BBB's flat scheme) has no such set to derive
  * from, so it falls back to the prescription's own percentage, overridable
  * per lift via `program.options.supplementalPercentageByLift` — BBB's
  * "50-55% recommended, lower for squat/deadlift" guidance (docs/templates/
- * boring-but-big.md "Options").
+ * boring-but-big.md "Options"). "percentageOfTrainingMaxByStep" (Forever
+ * BBB) reads the progression step; "percentageOfTrainingMaxPerSet" (Slightly
+ * Less BBB's 1x10 ascending) gives every set its own percentage.
+ *
+ * `program.options.supplementalSetCountByLift` (Beginner's stall remedy)
+ * overrides the set count for every source except per-set, whose count is
+ * the shape of the prescription itself.
  */
-function supplementalBasisPercentage(
+function supplementalSetPercentages(
   weekSets: MainWorkSet[],
+  step: 0 | 1 | 2,
   prescription: SupplementalPrescription,
   liftKey: LiftKey,
   options: Record<string, unknown>
-): number {
+): number[] {
+  if (prescription.source === "percentageOfTrainingMaxPerSet") {
+    return prescription.percentagesPerSet;
+  }
+  const setCountOverrides = options.supplementalSetCountByLift as Partial<Record<LiftKey, number>> | undefined;
+  const setCount = setCountOverrides?.[liftKey] ?? prescription.sets;
+  let percentage: number;
   switch (prescription.source) {
     case "firstSetLast":
-      return weekSets[0].tmPercentage;
+      percentage = weekSets[0].tmPercentage;
+      break;
     case "secondSetLast":
-      return weekSets[1].tmPercentage;
+      percentage = weekSets[1].tmPercentage;
+      break;
     case "percentageOfTrainingMax": {
       const overrides = options.supplementalPercentageByLift as Partial<Record<LiftKey, number>> | undefined;
-      return overrides?.[liftKey] ?? prescription.percentageOfTrainingMax;
+      percentage = overrides?.[liftKey] ?? prescription.percentageOfTrainingMax;
+      break;
     }
+    case "percentageOfTrainingMaxByStep":
+      percentage = prescription.percentagesByStep[step];
+      break;
   }
+  return Array.from({ length: setCount }, () => percentage);
 }
 
 export function liftsByKey(lifts: Lift[]): Map<LiftKey, Lift> {
@@ -277,19 +310,15 @@ export function buildMainCycleSessions(
     const prSetOverrides = program.options.prSetOnFinalSetByLift as Partial<Record<LiftKey, boolean>> | undefined;
     const effectiveWeekSets = prSetOverrides?.[liftKey] ? applyFinalSetPr(weekSets) : weekSets;
 
-    const supplementalLiftKey = supplementalBasisLiftKey(liftKey, program.options);
+    const supplementalLiftKey = supplementalBasisLiftKey(liftKey, template, program.options);
 
     let supplementalSets: PlannedSet[] = [];
     if (prescription !== "none") {
-      const basisPercentage = supplementalBasisPercentage(effectiveWeekSets, prescription, liftKey, program.options);
       const supplementalLift = supplementalLiftKey === liftKey ? lift : requireLift(lifts, supplementalLiftKey);
       const supplementalTm = trainingMax(supplementalLift.trainingMaxSeed, supplementalLift.increment, cycleIndex);
-      const supplementalWeight = workingWeight(supplementalTm, basisPercentage);
-      const setCountOverrides = program.options.supplementalSetCountByLift as Partial<Record<LiftKey, number>> | undefined;
-      const effectiveSets = setCountOverrides?.[liftKey] ?? prescription.sets;
-      supplementalSets = Array.from({ length: effectiveSets }, () => ({
-        tmPercentage: basisPercentage,
-        workingWeight: supplementalWeight,
+      supplementalSets = supplementalSetPercentages(effectiveWeekSets, step, prescription, liftKey, program.options).map((setPercentage) => ({
+        tmPercentage: setPercentage,
+        workingWeight: workingWeight(supplementalTm, setPercentage),
         reps: prescription.reps,
         isPrSet: false,
       }));

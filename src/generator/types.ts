@@ -24,9 +24,8 @@
 // ---------------------------------------------------------------------------
 
 /**
- * Stable identifiers the generator keys on. Matches the check constraint on
- * public.lifts.lift_key. Widen this union — and the constraint — together
- * when a template introduces a new lift.
+ * Stable identifiers the generator keys on. Widen this union when a
+ * template introduces a new lift.
  */
 export type LiftKey = "squat" | "bench" | "press" | "deadlift";
 
@@ -209,9 +208,10 @@ export type MainWorkBase = "3/5/1" | "classic" | "prSet";
  */
 export type MainWorkScheme =
   | ByRole<MainWorkSet[][]>
-  | { byMainWorkBase: Record<MainWorkBase, MainWorkSet[][]>; defaultMainWorkBase: MainWorkBase };
-
-export type SupplementalSourceKind = "firstSetLast" | "secondSetLast" | "percentageOfTrainingMax";
+  // Partial: a template offers only the bases its own section confirms
+  // (e.g. bbb-fsl offers classic and 3/5/1 but not the PR-set base). A
+  // saved base the template doesn't offer falls back to the default.
+  | { byMainWorkBase: Partial<Record<MainWorkBase, MainWorkSet[][]>>; defaultMainWorkBase: MainWorkBase };
 
 /**
  * FSL/SSL derive their percentage from that week's own main-work sets, so
@@ -219,10 +219,27 @@ export type SupplementalSourceKind = "firstSetLast" | "secondSetLast" | "percent
  * flat supplemental scheme) has no main-work set to derive from, so it must
  * state one — a template default, overridable per lift via
  * `program.options` (docs/templates/boring-but-big.md "Options").
+ *
+ * "percentageOfTrainingMaxByStep" is Forever BBB's week-varying scheme —
+ * one percentage per progression step, not overridable per lift.
+ * "percentageOfTrainingMaxPerSet" is Slightly Less BBB's 1x10 ascending
+ * (or descending) scheme — every set has its own percentage, the same in
+ * every progression step, so the set count is the list's length.
  */
 export type SupplementalPrescription =
   | { sets: number; reps: number; source: "firstSetLast" | "secondSetLast" }
-  | { sets: number; reps: number; source: "percentageOfTrainingMax"; percentageOfTrainingMax: number };
+  | { sets: number; reps: number; source: "percentageOfTrainingMax"; percentageOfTrainingMax: number }
+  | { sets: number; reps: number; source: "percentageOfTrainingMaxByStep"; percentagesByStep: number[] }
+  | { reps: number; source: "percentageOfTrainingMaxPerSet"; percentagesPerSet: number[] };
+
+export type SupplementalSourceKind = SupplementalPrescription["source"];
+
+/** One named supplemental scheme a template offers as an option. */
+export interface SupplementalSchemeChoice {
+  /** Display label for the option picker. */
+  label: string;
+  prescription: SupplementalPrescription;
+}
 
 /**
  * Beginner assigns each lift 85% or 90% individually (docs/templates/
@@ -232,11 +249,18 @@ export type SupplementalPrescription =
  * just supplies one SupplementalPrescription. "none" is Original 5/3/1's
  * case — no template in that family has any supplemental work at all,
  * rather than a prescription with zero sets standing in for "none".
+ *
+ * The `bySupplementalScheme` form is a knob the book tells you to set —
+ * Forever BBB's intensity and set count, Slightly Less BBB's three schemes —
+ * chosen via `program.options.supplementalScheme`. Same option-keyed
+ * convention as `MainWorkScheme`'s `byMainWorkBase`, told apart by its own
+ * distinct key.
  */
 export type Supplemental =
   | "none"
   | SupplementalPrescription
-  | { atLowerTmPercentage: SupplementalPrescription; atHigherTmPercentage: SupplementalPrescription };
+  | { atLowerTmPercentage: SupplementalPrescription; atHigherTmPercentage: SupplementalPrescription }
+  | { bySupplementalScheme: Record<string, SupplementalSchemeChoice>; defaultSupplementalScheme: string };
 
 export interface AssistanceTarget {
   /** e.g. "push", "pull", "single-leg-core" — Original 5/3/1's categories; Beginner's own groupings reuse this shape. */
@@ -308,6 +332,14 @@ export interface Template {
    * own assistance table has no bearing on it.
    */
   anchorAssistanceFollowsLeader?: boolean;
+  /**
+   * Whether `program.options.supplementalOppositeLift` applies to this
+   * template — Original BBB permits supplemental on the opposite lift
+   * (bench main, press supplemental); Forever BBB and FSL don't. Read by
+   * the generator so a saved toggle from one template can't leak into
+   * another that forbids it.
+   */
+  allowsOppositeSupplementalLift?: boolean;
 
   sessionShape: SessionShape;
   mainWorkScheme: MainWorkScheme;

@@ -2,7 +2,10 @@
 // changing the generator — see PRD §3's success criterion.
 
 import type { Template, TemplateId } from "../types";
+import { bbbForeverTemplate } from "./bbb-forever";
+import { bbbFslTemplate } from "./bbb-fsl";
 import { bbbOriginalTemplate } from "./bbb-original";
+import { bbbSlightlyLessTemplate } from "./bbb-slightly-less";
 import { beginnerTemplate } from "./beginner";
 import { original531AbTemplate } from "./original-531-ab";
 import { original53110RepTemplate } from "./original-531-10rep";
@@ -11,6 +14,9 @@ import { original531Template } from "./original-531";
 export const TEMPLATES: Record<TemplateId, Template> = {
   [beginnerTemplate.id]: beginnerTemplate,
   [bbbOriginalTemplate.id]: bbbOriginalTemplate,
+  [bbbForeverTemplate.id]: bbbForeverTemplate,
+  [bbbSlightlyLessTemplate.id]: bbbSlightlyLessTemplate,
+  [bbbFslTemplate.id]: bbbFslTemplate,
   [original531Template.id]: original531Template,
   [original53110RepTemplate.id]: original53110RepTemplate,
   [original531AbTemplate.id]: original531AbTemplate,

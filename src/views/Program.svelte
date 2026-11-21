@@ -13,13 +13,15 @@
 
   import { rescaleTrainingMaxSeed } from "../generator/calc";
   import { TEMPLATES } from "../generator/templates";
-  import { DEFAULT_INCREMENT_LB, PROGRAMMING_MODELS } from "../generator/types";
+  import { DEFAULT_INCREMENT_LB, PROGRAMMING_MODELS, resolveByRole } from "../generator/types";
   import type {
     AssistanceProfile,
     LiftKey,
     MainWorkBase,
     Program,
     ProgrammingModelId,
+    SupplementalPrescription,
+    SupplementalSchemeChoice,
     Template,
     TemplateId,
     TemplateRole,
@@ -143,8 +145,8 @@
   let anchorTemplateIdPick: TemplateId | null = initial.program?.anchorTemplateId ?? null;
   let tmPercentagePick: number = initial.program?.tmPercentage ?? 0.9;
 
-  const savedBase = initial.program?.options?.mainWorkBase;
-  let mainWorkBasePick: MainWorkBase = savedBase === "classic" || savedBase === "prSet" ? savedBase : "3/5/1";
+  let mainWorkBasePick: MainWorkBase | undefined = initial.program?.options?.mainWorkBase as MainWorkBase | undefined;
+  let supplementalSchemePick: string | undefined = initial.program?.options?.supplementalScheme as string | undefined;
 
   const savedAssistanceProfile = initial.program?.options?.assistanceProfile;
   let assistanceProfilePick: AssistanceProfile = savedAssistanceProfile === "roleKeyed" ? "roleKeyed" : "flat";
@@ -265,10 +267,43 @@
       ? preferredPercentage(leaderTemplate)
       : (percentageChoices[0] ?? tmPercentagePick);
 
-  // Only bbb-original and original-531-ab have any options wired into the
-  // generator so far.
-  $: isBbbOriginalLeader = leaderTemplateId === "bbb-original";
-  $: isOriginalAbLeader = leaderTemplateId === "original-531-ab";
+  // Which options to offer is read off the Leader template's own record —
+  // never its id — so a new template's knobs appear without touching this
+  // view. Beginner's options are keyed on the programming model instead.
+  $: mainWorkScheme = leaderTemplate?.mainWorkScheme;
+  $: mainWorkBases =
+    mainWorkScheme && "byMainWorkBase" in mainWorkScheme ? (Object.keys(mainWorkScheme.byMainWorkBase) as MainWorkBase[]) : [];
+  $: mainWorkBase =
+    mainWorkScheme && "byMainWorkBase" in mainWorkScheme
+      ? mainWorkBasePick !== undefined && mainWorkBases.includes(mainWorkBasePick)
+        ? mainWorkBasePick
+        : mainWorkScheme.defaultMainWorkBase
+      : undefined;
+
+  $: leaderSupplemental = leaderTemplate && !isBeginnerModel ? resolveByRole(leaderTemplate.supplemental, "leader") : "none";
+  $: supplementalSchemes =
+    typeof leaderSupplemental === "object" && "bySupplementalScheme" in leaderSupplemental
+      ? (Object.entries(leaderSupplemental.bySupplementalScheme) as [string, SupplementalSchemeChoice][])
+      : [];
+  $: supplementalScheme =
+    typeof leaderSupplemental === "object" && "bySupplementalScheme" in leaderSupplemental
+      ? supplementalSchemePick !== undefined && supplementalSchemePick in leaderSupplemental.bySupplementalScheme
+        ? supplementalSchemePick
+        : leaderSupplemental.defaultSupplementalScheme
+      : undefined;
+  $: selectedPrescription = ((): SupplementalPrescription | undefined => {
+    if (typeof leaderSupplemental !== "object") return undefined;
+    if ("source" in leaderSupplemental) return leaderSupplemental;
+    if ("bySupplementalScheme" in leaderSupplemental && supplementalScheme !== undefined) {
+      return leaderSupplemental.bySupplementalScheme[supplementalScheme].prescription;
+    }
+    return undefined;
+  })();
+  $: offersSupplementalPercentage = selectedPrescription?.source === "percentageOfTrainingMax";
+  $: offersOppositeLift = !isBeginnerModel && leaderTemplate?.allowsOppositeSupplementalLift === true;
+  $: offersAssistanceProfile = !isBeginnerModel && !!leaderTemplate && "byAssistanceProfile" in leaderTemplate.assistance;
+  $: hasLeaderOptions =
+    mainWorkBases.length > 1 || supplementalSchemes.length > 1 || offersSupplementalPercentage || offersOppositeLift || offersAssistanceProfile;
 
   $: lifts = $stateStore.lifts;
   $: program = $stateStore.program;
@@ -278,22 +313,35 @@
       saveError = "No template is available for this combination yet.";
       return;
     }
+    // Rebuilt from what this Leader offers: an option it doesn't offer is
+    // removed, so nothing saved under a previous template leaks into this one.
     const options: Record<string, unknown> = { ...program?.options };
-    if (isBbbOriginalLeader) {
-      options.mainWorkBase = mainWorkBasePick;
-      const overrides: Partial<Record<LiftKey, number>> = {};
+    if (mainWorkBase !== undefined) options.mainWorkBase = mainWorkBase;
+    else delete options.mainWorkBase;
+
+    if (supplementalScheme !== undefined) options.supplementalScheme = supplementalScheme;
+    else delete options.supplementalScheme;
+
+    const percentageOverrides: Partial<Record<LiftKey, number>> = {};
+    if (offersSupplementalPercentage) {
       for (const liftKey of LIFT_ORDER) {
         const pick = supplementalPercentPicks[liftKey];
-        if (pick !== DEFAULT_SUPPLEMENTAL_PERCENT) overrides[liftKey] = (pick as number) / 100;
+        if (pick !== DEFAULT_SUPPLEMENTAL_PERCENT) percentageOverrides[liftKey] = (pick as number) / 100;
       }
-      if (Object.keys(overrides).length > 0) options.supplementalPercentageByLift = overrides;
-      else delete options.supplementalPercentageByLift;
-
-      if (supplementalLiftPick === "opposite") options.supplementalOppositeLift = true;
-      else delete options.supplementalOppositeLift;
     }
-    if (isOriginalAbLeader) {
-      options.assistanceProfile = assistanceProfilePick;
+    if (Object.keys(percentageOverrides).length > 0) options.supplementalPercentageByLift = percentageOverrides;
+    else delete options.supplementalPercentageByLift;
+
+    if (offersOppositeLift && supplementalLiftPick === "opposite") options.supplementalOppositeLift = true;
+    else delete options.supplementalOppositeLift;
+
+    if (offersAssistanceProfile) options.assistanceProfile = assistanceProfilePick;
+    else delete options.assistanceProfile;
+
+    if (!isBeginnerModel) {
+      delete options.supplementalSourceByLift;
+      delete options.supplementalSetCountByLift;
+      delete options.prSetOnFinalSetByLift;
     }
     if (isBeginnerModel) {
       const sourceOverrides: Partial<Record<LiftKey, "firstSetLast" | "secondSetLast">> = {};
@@ -405,49 +453,61 @@
       </select>
     </label>
 
-    {#if isBbbOriginalLeader}
+    {#if hasLeaderOptions}
       <details class="options">
         <summary>Options</summary>
-        <label class="picker-row">
-          <span>Main Work Base</span>
-          <select bind:value={mainWorkBasePick}>
-            {#each Object.keys(MAIN_WORK_BASE_LABELS) as base}
-              <option value={base}>{MAIN_WORK_BASE_LABELS[base as MainWorkBase]}</option>
-            {/each}
-          </select>
-        </label>
-        <label class="picker-row">
-          <span>Supplemental Lift</span>
-          <select bind:value={supplementalLiftPick}>
-            {#each SUPPLEMENTAL_LIFT_ITEMS as item}
-              <option value={item.value}>{item.label}</option>
-            {/each}
-          </select>
-        </label>
-        {#each LIFT_ORDER as liftKey (liftKey)}
+        {#if mainWorkBases.length > 1}
           <label class="picker-row">
-            <span>{LIFT_LABELS[liftKey]} Supplemental %</span>
-            <select bind:value={supplementalPercentPicks[liftKey]}>
-              {#each SUPPLEMENTAL_PERCENT_ITEMS as item}
+            <span>Main Work Base</span>
+            <select value={mainWorkBase} on:change={(e) => (mainWorkBasePick = e.currentTarget.value as MainWorkBase)}>
+              {#each mainWorkBases as base}
+                <option value={base}>{MAIN_WORK_BASE_LABELS[base]}</option>
+              {/each}
+            </select>
+          </label>
+        {/if}
+        {#if supplementalSchemes.length > 1}
+          <label class="picker-row">
+            <span>Supplemental</span>
+            <select value={supplementalScheme} on:change={(e) => (supplementalSchemePick = e.currentTarget.value)}>
+              {#each supplementalSchemes as [key, choice] (key)}
+                <option value={key}>{choice.label}</option>
+              {/each}
+            </select>
+          </label>
+        {/if}
+        {#if offersOppositeLift}
+          <label class="picker-row">
+            <span>Supplemental Lift</span>
+            <select bind:value={supplementalLiftPick}>
+              {#each SUPPLEMENTAL_LIFT_ITEMS as item}
                 <option value={item.value}>{item.label}</option>
               {/each}
             </select>
           </label>
-        {/each}
-      </details>
-    {/if}
-
-    {#if isOriginalAbLeader}
-      <details class="options">
-        <summary>Options</summary>
-        <label class="picker-row">
-          <span>Assistance Volume</span>
-          <select bind:value={assistanceProfilePick}>
-            {#each ASSISTANCE_PROFILE_ITEMS as item}
-              <option value={item.value}>{item.label}</option>
-            {/each}
-          </select>
-        </label>
+        {/if}
+        {#if offersSupplementalPercentage}
+          {#each LIFT_ORDER as liftKey (liftKey)}
+            <label class="picker-row">
+              <span>{LIFT_LABELS[liftKey]} Supplemental %</span>
+              <select bind:value={supplementalPercentPicks[liftKey]}>
+                {#each SUPPLEMENTAL_PERCENT_ITEMS as item}
+                  <option value={item.value}>{item.label}</option>
+                {/each}
+              </select>
+            </label>
+          {/each}
+        {/if}
+        {#if offersAssistanceProfile}
+          <label class="picker-row">
+            <span>Assistance Volume</span>
+            <select bind:value={assistanceProfilePick}>
+              {#each ASSISTANCE_PROFILE_ITEMS as item}
+                <option value={item.value}>{item.label}</option>
+              {/each}
+            </select>
+          </label>
+        {/if}
       </details>
     {/if}
 
