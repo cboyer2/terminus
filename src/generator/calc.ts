@@ -59,11 +59,18 @@ export function trainingMax(
 }
 
 /**
+ * The empty bar. Every lift Terminus programs is a barbell lift, so no
+ * prescribed set can be lighter than this.
+ */
+export const BARBELL_WEIGHT_LB = 45;
+
+/**
  * Resolve a percentage of a training max to a displayable working weight,
- * rounded to the nearest 5 lb.
+ * rounded to the nearest 5 lb and floored at the empty bar — a light lift's
+ * 40% warm-up can otherwise round to 40 lb, which can't be loaded.
  */
 export function workingWeight(trainingMaxLb: number, tmPercentage: number): number {
-  return roundToNearestFive(trainingMaxLb * tmPercentage);
+  return Math.max(BARBELL_WEIGHT_LB, roundToNearestFive(trainingMaxLb * tmPercentage));
 }
 
 /**
