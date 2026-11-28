@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  BARBELL_WEIGHT_LB,
   estimatedMax,
   oneRepMaxFromPerformance,
   rescaleTrainingMaxSeed,
@@ -87,6 +88,16 @@ describe("workingWeight", () => {
   it("rounds a tie up, per the shared rounding rule", () => {
     // 350 x 0.65 = 227.5, an exact tie -> rounds to 230, not 225.
     expect(workingWeight(350, 0.65)).toBe(230);
+  });
+
+  it("never prescribes less than the empty bar", () => {
+    // 100 x 0.4 = 40 -> floored to 45.
+    expect(workingWeight(100, 0.4)).toBe(BARBELL_WEIGHT_LB);
+    expect(workingWeight(50, 0.4)).toBe(45);
+    // 115 x 0.4 = 46 -> 45 by ordinary rounding, unaffected by the floor.
+    expect(workingWeight(115, 0.4)).toBe(45);
+    // 125 x 0.4 = 50 — above the bar, untouched.
+    expect(workingWeight(125, 0.4)).toBe(50);
   });
 });
 
